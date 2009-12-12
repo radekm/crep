@@ -75,7 +75,7 @@ instance Symbol Char where
       -- Combines neighbouring and overlapping ranges together.
       merge (p1, p2, merged) (R curRange)
         -- Ranges cannot be merged and so @p@ is finished.
-        | p1 < c1 && succ p1 /= c1 = (c1, c2, cons (pair p1 p2) merged)
+        | p2 < c1 && succ p2 /= c1 = (c1, c2, cons (pair p1 p2) merged)
         -- Ranges overlap or are neighbours, we merge them.
         | otherwise                = (p1, max p2 c2, merged)
         where
