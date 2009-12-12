@@ -19,6 +19,7 @@ executable crep
   other-modules:
     Core.Regex
     Core.SymbSet
+    Core.Utils
 
   build-depends: base >= 4.0, adaptive-containers >= 0.3
 

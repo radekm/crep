@@ -1,4 +1,5 @@
-{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeFamilies      #-}
+{-# LANGUAGE FlexibleInstances #-}
 
 -- |
 -- Module    : Core.SymbSet
@@ -10,12 +11,15 @@
 --
 module Core.SymbSet where
 
-import Data.List (sort)
+import Data.List (intersperse, sort)
 
 import qualified Data.Adaptive.List as L
 import qualified Data.Adaptive.Tuple as T
-import Data.Adaptive.List (List, cons, fromList)
+import Data.Adaptive.List (List, cons, fromList, toList)
 import Data.Adaptive.Tuple (Pair, fromPair, pair)
+
+
+import Core.Utils
 
 class Symbol a where
   -- |Set of symbols.
@@ -103,4 +107,20 @@ instance Symbol Char where
       addMaxSymbolRng
         | lastSymbol == maxBound = id
         | otherwise              = cons (pair (succ lastSymbol) maxBound)
+
+instance Show (Range Char) where
+  showsPrec _ (R range)
+    | a == b    = (++) (esc a)
+    | otherwise = (++) (esc a ++ '-':esc b)
+    where
+      (a, b)  = fromPair range
+      esc '-' = "\\-"
+      esc c   = escapeSpecial c
+
+instance Show (SymbSet Char) where
+  showsPrec _ (S ranges)
+    = ('[':) . foldl (.) id xs . (']':)
+    where
+      xs :: [String -> String]
+      xs = intersperse (' ':) $ map (shows . R) $ toList ranges
 
