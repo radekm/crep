@@ -1,0 +1,27 @@
+name: crep
+version: 0.1
+license: BSD3
+license-file: LICENSE
+copyright: Radek Micek 2009
+author: Radek Micek
+maintainer: Radek Micek <radek.micek@gmail.com>
+stability: experimental
+category: Text
+synopsis: Competing regular expressions
+description: Text processing tool
+tested-with: GHC == 6.10.4
+cabal-version: >= 1.4
+build-type: Simple
+
+executable crep
+  executable: crep
+  main-is: Main.hs
+  other-modules:
+    Core.Regex
+    Core.SymbSet
+
+  build-depends: base >= 4.0, adaptive-containers >= 0.3
+
+  ghc-options: -Wall -fwarn-unused-binds -fwarn-unused-imports
+               -fwarn-unused-matches -fno-warn-missing-signatures
+
