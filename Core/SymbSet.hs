@@ -114,8 +114,8 @@ instance Show (Range Char) where
     | otherwise = (++) (esc a ++ '-':esc b)
     where
       (a, b)  = fromPair range
-      esc '-' = "\\-"
-      esc c   = escapeSpecial c
+      esc c | c `elem` "[]-^"  = '\\':c:""
+      esc c = escapeSpecial c
 
 instance Show (SymbSet Char) where
   showsPrec _ (S ranges)
