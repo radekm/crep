@@ -114,7 +114,7 @@ instance Show (Range Char) where
     | otherwise = (++) (esc a ++ '-':esc b)
     where
       (a, b)  = fromPair range
-      esc c | c `elem` "[]-^"  = '\\':c:""
+      esc c | c `elem` "]-^# " = '\\':c:""
       esc c = escapeSpecial c
 
 instance Show (SymbSet Char) where

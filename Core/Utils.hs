@@ -13,20 +13,20 @@ import Data.Maybe (fromJust)
 
 -- |List of the characters which have single-character escape code.
 escapeChars :: String
-escapeChars = "\0\a\b\f\n\r\t\v\ESC "
+escapeChars = "\0\a\b\f\n\r\t\v\ESC"
 
 -- |List of escape codes. The escape codes correspond to the characters
 -- in @'escapeChars'@.
 escapeCodes :: String
-escapeCodes = "0abfnrtve "
+escapeCodes = "0abfnrtve"
 
 -- |Escapes special character. Special character is backslash and
--- every character with code lower than 33.
+-- every character with code lower than 32.
 escapeSpecial :: Char -> String
 escapeSpecial c
   | c == '\\'            = "\\\\"
   | c `elem` escapeChars = '\\':lookup' (zip escapeChars escapeCodes) c:""
-  | code < 33            = "\\c" ++ replicate (2 - length hex) '0' ++ hex
+  | code < 32            = "\\x" ++ replicate (2 - length hex) '0' ++ hex
   | otherwise            = [c]
   where
     code = fromEnum c
