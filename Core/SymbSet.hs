@@ -56,7 +56,7 @@ instance Symbol Char where
   newtype SymbSet Char = S (List (Pair Char Char))
 
   newtype Range Char = R (Pair Char Char)
-                     deriving (Eq, Ord)
+                     deriving Eq
 
   empty = S (L.empty)
 
@@ -107,6 +107,11 @@ instance Symbol Char where
       addMaxSymbolRng
         | lastSymbol == maxBound = id
         | otherwise              = cons (pair (succ lastSymbol) maxBound)
+
+-- We cannot derive instance from @'Pair'@ because
+-- @pair 'a' 'a' < pair 'b' 'b' == False@ and we need lexicographical order.
+instance Ord (Range Char) where
+  compare (R a) (R b) = fromPair a `compare` fromPair b
 
 instance Show (Range Char) where
   showsPrec _ (R range)
