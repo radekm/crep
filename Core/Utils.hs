@@ -11,6 +11,10 @@ module Core.Utils where
 import Numeric (showHex)
 import Data.Maybe (fromJust)
 
+-- |List of the white characters.
+whiteChars :: String
+whiteChars = " \t\n\r\f\v"
+
 -- |List of the characters which have single-character escape code.
 escapeChars :: String
 escapeChars = "\0\a\b\f\n\r\t\v\ESC"

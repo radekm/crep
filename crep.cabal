@@ -20,8 +20,11 @@ executable crep
     Core.Regex
     Core.SymbSet
     Core.Utils
+    FrontEnd.Parsec
+    FrontEnd.RegexParser
 
-  build-depends: base >= 4.0, adaptive-containers >= 0.3
+  build-depends: base >= 4.0, adaptive-containers >= 0.3,
+                 parsec >= 3.0.1
 
   ghc-options: -Wall -fwarn-unused-binds -fwarn-unused-imports
                -fwarn-unused-matches -fno-warn-missing-signatures
