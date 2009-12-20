@@ -38,7 +38,8 @@ module FrontEnd.Parsec
   , (<?>)
   ) where
 
-import Numeric (readDec, readHex)
+import Numeric (readDec, readHex, showHex)
+import Data.Char (ord)
 
 import Text.Parsec hiding ((<|>), many, space, spaces)
 import Control.Applicative hiding (optional, empty)
@@ -46,21 +47,31 @@ import Control.Monad (when)
 
 import Core.Utils
 
--- |Function (@'number' minVal maxVal@) parses natural number from
--- the interval [@minVal@, @maxVal@].
-number :: Int -> Int -> Parsec String st Int
-number minVal maxVal
-  = try (do i <- liftA (fst . head . readDec) (many1 digit)
-            when (i < fromIntegral minVal || i > fromIntegral maxVal)
-              $ unexpected $ show i
+-- |Parses number.
+genericNumber
+  :: (Parsec String st Char)          -- Parses one digit.
+  -> (String -> [(Integer, String)])  -- Converts digits to number.
+  -> (Integer -> String)              -- Converts number to string.
+  -> String                           -- Name what is being read.
+  -> Int                              -- Minimal value.
+  -> Int                              -- Maximal value.
+  -> Parsec String st Int
+genericNumber digit' read' show' name minVal maxVal
+  = try (do i <- liftA (fst . head . read') (many1 digit')
+            when (i < minV || i > maxV) (unexpected $ show' i)
             return $ fromInteger i)
     <?> desc
   where
-    desc | minVal == maxVal = "number equal to " ++ show minVal
-         | otherwise        = "number from interval ["
-                                ++ show minVal ++ ", " ++ show maxVal ++ "]"
+    minV = fromIntegral minVal
+    maxV = fromIntegral maxVal
+    desc | minVal == maxVal = name ++ " equal to " ++ show' minV
+         | otherwise        = name ++ " from interval ["
+                                ++ show' minV ++ ", " ++ show' maxV ++ "]"
 
--- TODO: handle overflow of hexadecimal character code
+-- |Function (@'number' minVal maxVal@) parses natural number from
+-- the interval [@minVal@, @maxVal@].
+number :: Int -> Int -> Parsec String st Int
+number = genericNumber digit readDec show "number"
 
 -- |Parses escape sequence.
 escapeSeq :: Parsec String st Char
@@ -70,11 +81,13 @@ escapeSeq = char '\\' *> (p_char <|> p_num <|> p_any) <?> "escape sequence"
     p_char = lookup' chars <$> (oneOf . fst . unzip $ chars)
     -- Parses numeric escape sequence. Numeric escape sequence starts
     -- with @x@ or @u@.
-    p_num = toEnum . fst . head . readHex
-              <$> (try (oneOf "xu" >>
-                        between (char '{') (char '}') (many1 hexDigit))
-                     <|> char 'x' *> count 2 hexDigit
-                     <|> char 'u' *> count 4 hexDigit)
+    p_num =   char 'x' *> p_hexCode 2
+          <|> char 'u' *> p_hexCode 4
+    p_hexCode n =   (toEnum . fst . head . readHex <$> count n hexDigit)
+                <|> (between (char '{') (char '}')
+                             (toEnum <$> genericNumber hexDigit readHex
+                                (flip showHex "") "character code"
+                                (ord minBound) (ord maxBound)))
     -- Parses other escape sequences.
     p_any = anyChar
     chars = zip escapeCodes escapeChars
@@ -83,10 +96,11 @@ escapeSeq = char '\\' *> (p_char <|> p_num <|> p_any) <?> "escape sequence"
 skipSpacesAndComments :: Parsec String st ()
 skipSpacesAndComments = skipMany (space <|> comment)
   where
-    space = oneOf whiteChars >> return ()
+    space = oneOf whiteChars >> return () <?> "space"
     comment = do char '#'
                  skipMany (noneOf "\n\r")
                  (eof <|> eol)
+            <?> "comment"
     eol =   (char '\r' >> option () (char '\n' >> return ()))
         <|> (char '\n' >> option () (char '\r' >> return ()))
         <?> "end of line"

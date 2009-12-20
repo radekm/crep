@@ -115,9 +115,9 @@ p_range = do x <- p_charInSet
 
 -- |Parses one character or escape sequence in regular expression.
 p_charInRegex :: Parsec String st Char
-p_charInRegex = noneOf_ "\\/[{()|&*+?^." <|> try escapeSeq_ <?> "character"
+p_charInRegex = noneOf_ "\\/[{()|&*+?^." <|> escapeSeq_ <?> "character"
 
 -- |Parses one character or escape sequence in character set.
 p_charInSet :: Parsec String st Char
-p_charInSet = noneOf_ "\\]-" <|> try escapeSeq_ <?> "character"
+p_charInSet = noneOf_ "\\]-" <|> escapeSeq_ <?> "character"
 
