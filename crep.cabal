@@ -8,6 +8,7 @@ maintainer: Radek Micek <radek.micek@gmail.com>
 stability: experimental
 category: Text
 synopsis: Competing regular expressions
+extra-source-files: tests/run.hs
 description: Text processing tool
 tested-with: GHC == 6.10.4
 cabal-version: >= 1.4

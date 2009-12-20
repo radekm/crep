@@ -54,6 +54,7 @@ moduleError fun msg = error ("Core.SymbSet." ++ fun ++ ':':' ':msg)
 
 instance Symbol Char where
   newtype SymbSet Char = S (List (Pair Char Char))
+                       deriving Eq
 
   newtype Range Char = R (Pair Char Char)
                      deriving Eq
