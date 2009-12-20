@@ -4,7 +4,7 @@
 -- License   : BSD3
 -- Stability : experimental
 --
--- Set of symbols and range of symbols.
+-- Utility functions.
 --
 module Core.Utils where
 
