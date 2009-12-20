@@ -1,7 +1,7 @@
 
 module Main where
 
-import FrontEnd.RegexParser ()
+import FrontEnd.RuleParser ()
 
 main :: IO ()
 main = return ()

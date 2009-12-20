@@ -17,11 +17,13 @@ module FrontEnd.Parsec
   , number_
   , escapeSeq
   , escapeSeq_
+  , digit
   , skipSpacesAndComments
   , sepBy
   , sepBy1
   , many
   , many1
+  , eof
   , between
   , choice
   , option
@@ -34,6 +36,8 @@ module FrontEnd.Parsec
   , (<$>)
   , (<|>)
   , (<*>)
+  , (<*)
+  , (*>)
   , (<**>)
   , (<?>)
   ) where

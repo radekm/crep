@@ -19,10 +19,12 @@ executable crep
   main-is: Main.hs
   other-modules:
     Core.Regex
+    Core.Rule
     Core.SymbSet
     Core.Utils
     FrontEnd.Parsec
     FrontEnd.RegexParser
+    FrontEnd.RuleParser
 
   build-depends: base >= 4.0, adaptive-containers >= 0.3,
                  parsec >= 3.0.1
