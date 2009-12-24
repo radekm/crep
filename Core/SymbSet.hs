@@ -183,6 +183,18 @@ instance Show (Range Char) where
       esc c | c `elem` "]-^# " = '\\':c:""
       esc c = escapeSpecial c
 
+-- We cannot derive Ord instance from @'List'@ beacuse
+-- @fromList [pair 'a' 'a'] < fromList [pair 'b' 'b'] == False@ and we need
+-- lexicographical order.
+instance Ord (SymbSet Char) where
+  compare (S rangesA) (S rangesB) = cmp rangesA rangesB
+    where
+      cmp as bs | L.null as = if L.null bs then EQ else LT
+                | L.null bs = GT
+                | otherwise = case compare (R $ L.head as) (R $ L.head bs) of
+                                EQ -> cmp (L.tail as) (L.tail bs)
+                                x  -> x
+
 instance Show (SymbSet Char) where
   showsPrec _ (S ranges)
     = ('[':) . foldl (.) id xs . (']':)
