@@ -164,6 +164,10 @@ instance Symbol Char where
           (a1, a2) = fromPair a
           (b1, b2) = fromPair b
 
+-- |Set with all characters.
+alphabet :: CharSet
+alphabet = S (pair minBound maxBound `cons` L.empty)
+
 -- (++) operator for adaptive list has bug (infinite recursion).
 pp xs ys
   | L.null xs = ys

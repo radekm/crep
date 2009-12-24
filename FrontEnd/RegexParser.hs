@@ -67,7 +67,7 @@ p_atom = p_char <|> p_any <|> p_set <|> p_group
   where
     p_char = do c <- p_charInRegex
                 return $ RCharSet $ fromRanges [mkRange c c]
-    p_any = char_ '.' >> return (RCharSet $ complement empty)
+    p_any = char_ '.' >> return (RCharSet alphabet)
 
 -- PROBLEM: there is no check for overflow of group numbers
 
