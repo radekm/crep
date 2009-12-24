@@ -10,6 +10,11 @@ module Core.Utils where
 
 import Numeric (showHex)
 import Data.Maybe (fromJust)
+import Data.List (group)
+
+-- |Removes duplicate items from the given sorted list.
+nubSorted :: Eq a => [a] -> [a]
+nubSorted = map head . group
 
 -- |List of the white characters.
 whiteChars :: String

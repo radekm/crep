@@ -22,6 +22,7 @@ executable crep
     Core.Rule
     Core.SymbSet
     Core.Utils
+    Core.FA.RE
     FrontEnd.Parsec
     FrontEnd.RegexParser
     FrontEnd.RuleParser
