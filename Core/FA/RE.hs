@@ -136,6 +136,7 @@ simplify (ROr rs) = fin $ nubSorted $ sort $ unionCharSets
       where
         -- @cs@ is a list of @CharSet@s from disjunction which will be merged
         -- and @os@ are other regular expressions which were in disjunction.
+        merge ([], os) = os
         merge (cs, os) = (RCharSet $ foldl union empty cs):os
     fin []                     = minLang  -- Empty disjunction.
     fin [x]                    = x
@@ -152,7 +153,8 @@ simplify (RAnd rs) = fin $ nubSorted $ sort $ intersectCharSets
     intersectCharSets = merge . separateCharSets
       where
         -- @cs@ is a list of @CharSet@s from conjunction.
-        merge (cs, os) = (RCharSet $ foldl intersect empty cs):os
+        merge ([], os) = os
+        merge (cs, os) = (RCharSet $ foldl intersect alphabet cs):os
     fin []                      = maxLang  -- Empty conjunction.
     fin [x]                     = x
     fin xs | head xs == minLang = minLang  -- Empty language.
