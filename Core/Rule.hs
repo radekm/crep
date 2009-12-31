@@ -1,3 +1,5 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
 -- |
 -- Module    : Core.Rule
 -- Copyright : (c) Radek Micek 2009
@@ -17,7 +19,7 @@ data Rule = Rule !Priority !PrefLength Regex Subst
 
 -- |Priority of the rule.
 newtype Priority = Pr Int
-                 deriving Show
+                 deriving (Eq, Show)
 
 -- |Flag whether the rule prefers to select shortest or longest words.
 data PrefLength = Shortest | Longest
@@ -32,4 +34,8 @@ newtype Subst = Subst [SubstTerm]
 data SubstTerm = TConst String
                | TGroup !Int
                deriving Show
+
+-- |Number of the rule.
+newtype RuNum = RuN Int
+              deriving (Eq, Ord, Show, Enum)
 
