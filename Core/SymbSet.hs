@@ -45,6 +45,9 @@ class Symbol a where
   -- of the set @xs@.
   member :: a -> SymbSet a -> Bool
 
+  -- |Returns first symbol which is member of given symbol set.
+  firstSymb :: SymbSet a -> a
+
   -- |Returns the complement of the given symbol set.
   complement :: SymbSet a -> SymbSet a
 
@@ -96,6 +99,8 @@ instance Symbol Char where
     where
       isInsideRange :: Pair Char Char -> Bool
       isInsideRange range = T.fst range <= c && T.snd range >= c
+
+  firstSymb (S ranges) = fst $ fromPair $ L.head ranges
 
   complement (S origRanges)
     -- The original set is empty and so its complement contains all symbols.
