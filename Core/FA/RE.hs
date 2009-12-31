@@ -234,3 +234,26 @@ derivative c (RConcat (r:rs))
 derivative c star@(RStar r) = RConcat [derivative c r, star]
 derivative c (RNot r)       = RNot (derivative c r)
 
+-- |The function (@'partitionAlphabetByDerivatives' r@) returns a partition
+-- of the alphabet where each block of the partition contains characters
+-- which give same derivatives for @r@ i.e. if @c1@ and @c2@ are in the same
+-- block then @'derivative' c1 r == 'derivative' c2 r@.
+partitionAlphabetByDerivatives :: RE e -> [CharSet]
+partitionAlphabetByDerivatives re
+  = case re of
+      RCharSet cs    -> remEmpty [cs, complement cs]
+      REpsilon       -> [alphabet]
+      ROr rs         -> intersectManyPs (map pa rs)
+      RAnd rs        -> intersectManyPs (map pa rs)
+      RConcat []     -> [alphabet]
+      RConcat (r:rs)
+        | nullable r -> intersectTwoPs (pa r) (pa $ RConcat rs)
+        | otherwise  -> pa r
+      RStar r        -> pa r
+      RNot r         -> pa r
+  where
+    remEmpty             = filter (/= empty)
+    intersectTwoPs as bs = remEmpty [intersect a b | a <- as, b <- bs]
+    intersectManyPs      = foldl intersectTwoPs [alphabet]
+    pa                   = partitionAlphabetByDerivatives
+
