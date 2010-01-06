@@ -174,8 +174,7 @@ buildBrzoState dfa stVect reList
           = (newAuto, (blockOfPart, stateNum):finTrans)
           where
             -- Derivative of list with regular expressions.
-            reList' = map (simplify
-                             . (derivative $ firstSymb blockOfPart)) reList
+            reList' = map (derivative $ firstSymb blockOfPart) reList
             -- Create @stList'@ with numbers of regular expressions. Regular
             -- expression which were not in @bREs auto@ are added to @newREs@.
             (newREs, stList') = addREList (bREs auto) reList'

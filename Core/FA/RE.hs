@@ -121,13 +121,10 @@ toRE (R.RCounter _ minRep maxRep' r)
 toRE (R.RNot r)      = RNot (toRE r)
 toRE (R.RGroup _ r)  = toRE r  -- Capturing groups are not supported.
 
--- |Simplifies regular expression.
-simplify :: RE e -> RE e
-simplify REpsilon      = REpsilon
-simplify (RCharSet cs) = RCharSet cs
-
-simplify (ROr rs) = fin $ nubSorted $ sort $ unionCharSets
-                      $ concatMap item $ map simplify rs
+-- |Applies operator @or@ to the list of simplified regular expressions.
+-- Returns simplified regular expression.
+simpOr :: [RE e] -> RE e
+simpOr = fin . nubSorted . sort . unionCharSets . concatMap item
   where
     item (ROr xs)         = xs  -- Take up nested disjunction.
     item x | x == minLang = []  -- Ignore empty language.
@@ -143,8 +140,10 @@ simplify (ROr rs) = fin $ nubSorted $ sort $ unionCharSets
     fin xs | maxLang `elem` xs = maxLang  -- Language with all words.
            | otherwise         = ROr xs
 
-simplify (RAnd rs) = fin $ nubSorted $ sort $ intersectCharSets
-                       $ concatMap item $ map simplify rs
+-- |Applies operator @and@ to the list of simplified regular expressions.
+-- Returns simplified regular expression.
+simpAnd :: [RE Yes] -> RE Yes
+simpAnd = fin . nubSorted . sort . intersectCharSets . concatMap item
   where
     item :: RE e -> [RE e]
     item (RAnd xs)        = xs  -- Take up nested conjunction.
@@ -159,8 +158,11 @@ simplify (RAnd rs) = fin $ nubSorted $ sort $ intersectCharSets
     fin [x]                     = x
     fin xs | head xs == minLang = minLang  -- Empty language.
            | otherwise          = RAnd xs
-    
-simplify (RConcat rs) = fin $ concatMap item $ map simplify rs
+
+-- |Concatenates simplified regular expressions in the given list. Returns
+-- simplified regular expression.
+simpConcat :: [RE e] -> RE e
+simpConcat = fin . concatMap item
   where
     item (RConcat xs) = xs  -- Take up nested concatenation.
     item REpsilon     = []  -- Ignore empty string.
@@ -170,22 +172,36 @@ simplify (RConcat rs) = fin $ concatMap item $ map simplify rs
     fin xs | minLang `elem` xs = minLang  -- Empty language.
            | otherwise         = RConcat xs
 
-simplify (RStar r) = case newR of
-                       REpsilon            -> REpsilon  -- Empty string.
-                       RStar _             -> newR      -- Idempotence.
-                       ROr (x@(RCharSet cs):_)
-                         -- Disjunction with whole alphabet.
-                         | cs == alphabet  -> RStar x
-                       _ | newR == minLang -> REpsilon  -- Empty language.
-                         | otherwise       -> RStar newR
-  where
-    newR = simplify r
+-- |Applies operator @star@ to simplified regular expression. Returns
+-- simplified regular expression.
+simpStar :: RE e -> RE e
+simpStar r = case r of
+               REpsilon           -> REpsilon  -- Empty string.
+               RStar _            -> r         -- Idempotence.
+               ROr (x@(RCharSet cs):_)
+                 -- Disjunction with whole alphabet.
+                 | cs == alphabet -> RStar x
+               _ | r == minLang   -> REpsilon  -- Empty language.
+                 | otherwise      -> RStar r
 
-simplify (RNot r) = case simplify r of
-                      RNot r' -> r'  -- Double not.
-                      x | x == minLang -> maxLang  -- Empty language.
-                        | x == maxLang -> minLang  -- Language with all words.
-                        | otherwise    -> RNot x
+-- |Applies operator @not@ to simplified regular expression. Returns
+-- simplified regular expression.
+simpNot :: RE Yes -> RE Yes
+simpNot r = case r of
+              RNot r' -> r'  -- Double not.
+              _ | r == minLang -> maxLang  -- Empty language.
+                | r == maxLang -> minLang  -- Language with all words.
+                | otherwise    -> RNot r
+
+-- |Simplifies regular expression.
+simplify :: RE e -> RE e
+simplify REpsilon      = REpsilon
+simplify (RCharSet cs) = RCharSet cs
+simplify (ROr rs)      = simpOr $ map simplify rs
+simplify (RAnd rs)     = simpAnd $ map simplify rs
+simplify (RConcat rs)  = simpConcat $ map simplify rs
+simplify (RStar r)     = simpStar (simplify r)
+simplify (RNot r)      = simpNot (simplify r)
 
 -- |Function @'separateCharSets' rs@ returns a pair @(cs, os)@ where @cs@
 -- contains character sets from @rs@ (i.e. if @RCharSet xs `elem` rs@ then
@@ -217,22 +233,22 @@ nullable (RConcat rs) = and (map nullable rs)
 nullable (RStar _)    = True
 nullable (RNot r)     = not (nullable r)
 
--- |The function @'derivative' c r@ returns left derivative of regular
--- expression @r@ by character @c@.
+-- |The function @'derivative' c r@ returns simplified left derivative
+-- of simplified regular expression @r@ by character @c@.
 derivative :: Char -> RE e -> RE e
 derivative c (RCharSet cs)  = if member c cs then REpsilon else RCharSet empty
 derivative _ REpsilon       = RCharSet empty
-derivative c (ROr rs)       = ROr $ map (derivative c) rs
-derivative c (RAnd rs)      = RAnd $ map (derivative c) rs
+derivative c (ROr rs)       = simpOr $ map (derivative c) rs
+derivative c (RAnd rs)      = simpAnd $ map (derivative c) rs
 derivative _ (RConcat [])   = RCharSet empty
 derivative c (RConcat (r:rs))
-  | nullable r = ROr [first, derivative c rest]
+  | nullable r = simpOr [first, derivative c rest]
   | otherwise  = first
   where
-    first = RConcat [derivative c r, rest]
-    rest  = RConcat rs
-derivative c star@(RStar r) = RConcat [derivative c r, star]
-derivative c (RNot r)       = RNot (derivative c r)
+    first = simpConcat [derivative c r, rest]
+    rest  = simpConcat rs
+derivative c star@(RStar r) = simpConcat [derivative c r, star]
+derivative c (RNot r)       = simpNot (derivative c r)
 
 -- |The function (@'partitionAlphabetByDerivatives' r@) returns a partition
 -- of the alphabet where each block of the partition contains characters
