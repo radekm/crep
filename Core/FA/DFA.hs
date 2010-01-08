@@ -83,7 +83,7 @@ data BrzoStateData = BSD {
 data BrzoDFA
   = BDFA {
            -- Maps regular expressions to numbers. 
-           bREs :: M.Map (RE Yes) RENum
+           bREs :: M.Map RE RENum
            -- Maps state vectors to state numbers.
          , bStates :: M.Map (UArr RENum) StNum
            -- Data of states.
@@ -94,7 +94,7 @@ data BrzoDFA
          }
 
 -- |Constructs Brzozowski's automat for given regular expressions.
-brzoCons :: [(RE Yes, Priority)] -> BrzoDFA
+brzoCons :: [(RE, Priority)] -> BrzoDFA
 brzoCons rsPrio
   = fst $ buildBrzoState (BDFA mapREs M.empty [] wtmFunc len)
                          (toU reNums) rs
@@ -112,7 +112,7 @@ brzoCons rsPrio
 
 -- |Adds regular expression to the map. Returns new map and number of regular
 -- expression.
-addRE :: M.Map (RE Yes) RENum -> RE Yes -> (M.Map (RE Yes) RENum, RENum)
+addRE :: M.Map RE RENum -> RE -> (M.Map RE RENum, RENum)
 addRE mapREs r = case oldRENum of
                    Just n -> (mapREs, n)
                    -- Regular expression @r@ was not in the map.
@@ -128,8 +128,8 @@ addRE mapREs r = case oldRENum of
 
 -- |Adds all regular expressions in the list to the map and returns their
 -- numbers.
-addREList :: M.Map (RE Yes) RENum -> [RE Yes]
-          -> (M.Map (RE Yes) RENum, [RENum])
+addREList :: M.Map RE RENum -> [RE]
+          -> (M.Map RE RENum, [RENum])
 addREList mapREs = second reverse . foldl addOneRE (mapREs, [])
   where
     addOneRE (oldREs, reNumList) r
@@ -142,7 +142,7 @@ addREList mapREs = second reverse . foldl addOneRE (mapREs, [])
 --
 -- If the state is not in the map we build its transitions and all states
 -- which are reachable from this state.
-buildBrzoState :: BrzoDFA -> UArr RENum -> [RE Yes] -> (BrzoDFA, StNum)
+buildBrzoState :: BrzoDFA -> UArr RENum -> [RE] -> (BrzoDFA, StNum)
 buildBrzoState dfa stVect reList
   = case oldStNum of
       Just stNum -> (dfa, stNum)
