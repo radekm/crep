@@ -93,7 +93,7 @@ data BrzoDFA
          , bVectLength :: Int
          }
 
--- |Constructs Brzozowski's automat for given regular expressions.
+-- |Constructs Brzozowski's automaton for given regular expressions.
 brzoCons :: [(RE, Priority)] -> BrzoDFA
 brzoCons rsPrio
   = fst $ buildBrzoState (BDFA mapREs M.empty [] wtmFunc len)
