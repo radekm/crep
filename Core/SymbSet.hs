@@ -11,7 +11,7 @@
 --
 module Core.SymbSet where
 
-import Data.List (intersperse, sort)
+import Data.List (intersperse)
 
 import qualified Data.Adaptive.List as L
 import qualified Data.Adaptive.Tuple as T
@@ -78,22 +78,9 @@ instance Symbol Char where
     | a <= b    = R (pair a b)
     | otherwise = moduleError "mkRange" "invalid range"
 
-  fromRanges []         = empty
-  fromRanges ranges = S $ L.reverse $ cons (pair l1 l2) mergedRngsNoLastRev
+  fromRanges ranges = foldl union empty (map rangeToSet ranges)
     where
-      (R firstRange:rs) = sort ranges
-      (f1, f2)          = fromPair firstRange
-      -- @mergedRngsNoLastRev@ contains all merged ranges but last. The order
-      -- is reversed.
-      (l1, l2, mergedRngsNoLastRev) = foldl merge (f1, f2, L.empty) rs
-      -- Combines neighbouring and overlapping ranges together.
-      merge (p1, p2, merged) (R curRange)
-        -- Ranges cannot be merged and so @p@ is finished.
-        | p2 < c1 && succ p2 /= c1 = (c1, c2, cons (pair p1 p2) merged)
-        -- Ranges overlap or are neighbours, we merge them.
-        | otherwise                = (p1, max p2 c2, merged)
-        where
-          (c1, c2) = fromPair curRange
+      rangeToSet (R r) = S $ cons r L.empty
 
   member c (S ranges) = L.any isInsideRange ranges
     where
