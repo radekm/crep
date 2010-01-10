@@ -18,11 +18,12 @@ executable crep
   executable: crep
   main-is: Main.hs
   other-modules:
+    Core.Partition
+    Core.RE
     Core.Regex
     Core.Rule
     Core.SymbSet
     Core.Utils
-    Core.RE
     Core.FA.DFA
     FrontEnd.Parsec
     FrontEnd.RegexParser
