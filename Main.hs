@@ -4,7 +4,7 @@ module Main where
 import System.Environment (getArgs)
 import FrontEnd.RuleParser (parseRules)
 import Core.Rule (Rule(..), Priority(..))
-import Core.FA.RE (toRE, simplify)
+import Core.RE (toRE, simplify)
 import Core.FA.DFA (BrzoDFA(..), brzoCons)
 import Control.Applicative ((<$>))
 

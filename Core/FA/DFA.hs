@@ -17,7 +17,7 @@ import Data.Array.Vector.UArr (lengthU, indexU)
 import Core.SymbSet
 import Core.Partition
 import Core.Rule
-import Core.FA.RE
+import Core.RE
 import Control.Applicative ((<$>))
 import Control.Arrow (second)
 

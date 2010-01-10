@@ -1,12 +1,12 @@
 -- |
--- Module    : Core.FA.RE
+-- Module    : Core.RE
 -- Copyright : (c) Radek Micek 2009, 2010
 -- License   : BSD3
 -- Stability : experimental
 --
 -- Regular expressions for automata constructions.
 --
-module Core.FA.RE where
+module Core.RE where
 
 import Data.List (sort)
 import qualified Core.Regex as R
