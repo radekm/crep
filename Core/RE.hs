@@ -4,9 +4,17 @@
 -- License   : BSD3
 -- Stability : experimental
 --
--- Regular expressions for automata constructions.
+-- Simplified regular expressions.
 --
-module Core.RE where
+module Core.RE
+  ( RE
+  , toRE
+  , fromRE
+  , nullable
+  , derivative
+  , partitionAlphabetByDerivatives
+  , partitionAlphabetByDerivativesMany
+  ) where
 
 import Data.List (sort)
 import qualified Core.Regex as R
@@ -99,19 +107,19 @@ fromRE (RNot r)      = R.RNot (fromRE r)
 toRE :: R.Regex -> RE
 toRE R.REpsilon      = REpsilon
 toRE (R.RCharSet cs) = RCharSet cs
-toRE (R.ROr rs)      = ROr (map toRE rs)
-toRE (R.RAnd rs)     = RAnd (map toRE rs)
-toRE (R.RConcat rs)  = RConcat (map toRE rs)
-toRE (R.RStar _ r)   = RStar (toRE r)
+toRE (R.ROr rs)      = simpOr (map toRE rs)
+toRE (R.RAnd rs)     = simpAnd (map toRE rs)
+toRE (R.RConcat rs)  = simpConcat (map toRE rs)
+toRE (R.RStar _ r)   = simpStar (toRE r)
 toRE (R.RCounter _ minRep maxRep' r)
   = case maxRep' of
-      Nothing     -> RConcat $ mandatory ++ [RStar newR]
-      Just maxRep -> RConcat $ mandatory ++ (replicate (maxRep-minRep)
-                                                       (ROr [newR, REpsilon]))
+      Nothing     -> simpConcat $ mandatory ++ [simpStar newR]
+      Just maxRep -> simpConcat $ mandatory ++ (replicate (maxRep-minRep)
+                                                  (simpOr [newR, REpsilon]))
   where
     mandatory = replicate minRep newR  -- Minimal number of repetitions.
     newR      = toRE r
-toRE (R.RNot r)      = RNot (toRE r)
+toRE (R.RNot r)      = simpNot (toRE r)
 toRE (R.RGroup _ r)  = toRE r  -- Capturing groups are not supported.
 
 -- |Applies operator @or@ to the list of simplified regular expressions.
@@ -184,16 +192,6 @@ simpNot r = case r of
               _ | r == minLang -> maxLang  -- Empty language.
                 | r == maxLang -> minLang  -- Language with all words.
                 | otherwise    -> RNot r
-
--- |Simplifies regular expression.
-simplify :: RE -> RE
-simplify REpsilon      = REpsilon
-simplify (RCharSet cs) = RCharSet cs
-simplify (ROr rs)      = simpOr $ map simplify rs
-simplify (RAnd rs)     = simpAnd $ map simplify rs
-simplify (RConcat rs)  = simpConcat $ map simplify rs
-simplify (RStar r)     = simpStar (simplify r)
-simplify (RNot r)      = simpNot (simplify r)
 
 -- |Function @'separateCharSets' rs@ returns a pair @(cs, os)@ where @cs@
 -- contains character sets from @rs@ (i.e. if @RCharSet xs `elem` rs@ then

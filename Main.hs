@@ -4,7 +4,7 @@ module Main where
 import System.Environment (getArgs)
 import FrontEnd.RuleParser (parseRules)
 import Core.Rule (Rule(..), Priority(..))
-import Core.RE (toRE, simplify)
+import Core.RE (toRE)
 import Core.FA.DFA (BrzoDFA(..), brzoCons)
 import Control.Applicative ((<$>))
 
@@ -20,7 +20,7 @@ main = do rulesFile <- head <$> getArgs
               -- Convert list of rules into list of pairs
               -- @(RE Yes, 1)@. For now we ignore priority of the rules.
               let reList = map (\(Rule _ _ regex _) ->
-                                  (simplify $ toRE regex, Pr 1))
+                                  (toRE regex, Pr 1))
                                rules
               -- Build Brzozowski's automaton and print number of its states.
               putStrLn "Starting Brzozowski's construction..."
