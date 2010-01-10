@@ -1,6 +1,6 @@
 -- |
 -- Module    : Core.FA.RE
--- Copyright : (c) Radek Micek 2009
+-- Copyright : (c) Radek Micek 2009, 2010
 -- License   : BSD3
 -- Stability : experimental
 --
@@ -12,6 +12,7 @@ import Data.List (sort)
 import qualified Core.Regex as R
 import Core.SymbSet
 import Core.Utils
+import Core.Partition
 
 -- |Type @'RE'@ represents regular expressions. @RE@ is lighter version
 -- of @Regex@ which is designed for use in automata constructions. Therefore
@@ -245,22 +246,27 @@ derivative c (RNot r)       = simpNot (derivative c r)
 -- of the alphabet where each block of the partition contains characters
 -- which give same derivatives for @r@ i.e. if @c1@ and @c2@ are in the same
 -- block then @'derivative' c1 r == 'derivative' c2 r@.
-partitionAlphabetByDerivatives :: RE -> [CharSet]
+partitionAlphabetByDerivatives :: RE -> Partition
 partitionAlphabetByDerivatives re
   = case re of
-      RCharSet cs    -> remEmpty [cs, complement cs]
-      REpsilon       -> [alphabet]
-      ROr rs         -> intersectManyPs (map pa rs)
-      RAnd rs        -> intersectManyPs (map pa rs)
-      RConcat []     -> [alphabet]
+      RCharSet cs    -> fromCharSet cs
+      REpsilon       -> maxBlock
+      ROr rs         -> pam rs
+      RAnd rs        -> pam rs
+      RConcat []     -> maxBlock
       RConcat (r:rs)
         | nullable r -> intersectTwoPs (pa r) (pa $ RConcat rs)
         | otherwise  -> pa r
       RStar r        -> pa r
       RNot r         -> pa r
   where
-    remEmpty             = filter (/= empty)
-    intersectTwoPs as bs = remEmpty [intersect a b | a <- as, b <- bs]
-    intersectManyPs      = foldl intersectTwoPs [alphabet]
-    pa                   = partitionAlphabetByDerivatives
+    pa  = partitionAlphabetByDerivatives
+    pam = partitionAlphabetByDerivativesMany
+
+-- |Similar to @'partitionAlphabetByDerivatives'@ but accepts list of regular
+-- expressions.
+partitionAlphabetByDerivativesMany :: [RE] -> Partition
+partitionAlphabetByDerivativesMany rs
+  = intersectManyPs (map partitionAlphabetByDerivatives rs)
+{-# INLINE partitionAlphabetByDerivativesMany #-}
 

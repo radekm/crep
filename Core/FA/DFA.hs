@@ -3,7 +3,7 @@
 
 -- |
 -- Module    : Core.FA.DFA
--- Copyright : (c) Radek Micek 2009
+-- Copyright : (c) Radek Micek 2009, 2010
 -- License   : BSD3
 -- Stability : experimental
 --
@@ -15,6 +15,7 @@ import qualified Data.Map as M
 import Data.Array.Vector hiding (lengthU, indexU)
 import Data.Array.Vector.UArr (lengthU, indexU)
 import Core.SymbSet
+import Core.Partition
 import Core.Rule
 import Core.FA.RE
 import Control.Applicative ((<$>))
@@ -160,14 +161,14 @@ buildBrzoState dfa stVect reList
       where
         matches = map fst $ filter snd $ zip [(RuN 0)..] $ map nullable reList
     
-    alphabetPartition = partitionAlphabetByDerivatives (ROr reList)
+    alphabetPartition = partitionAlphabetByDerivativesMany reList
 
     -- Create outgoing transitions. For each block of the @alphabetPartition@
     -- we build destination state and transition to that state. We have to add
     -- current state into the map to prevent building it again when calling
     -- @buildBrzoState@ recursively.
     (dfa', newTrans) = foldl buildNextState (dfa {bStates = newStates}, [])
-                         alphabetPartition
+                         (toCharSets alphabetPartition)
       where
         -- 
         buildNextState (auto, finTrans) blockOfPart
