@@ -6,7 +6,14 @@
 --
 -- Partitioning of the alphabet.
 --
-module Core.Partition where
+module Core.Partition
+  ( Partition
+  , fromCharSet
+  , toCharSets
+  , maxBlock
+  , intersectTwoPs
+  , intersectManyPs
+  ) where
 
 import Core.SymbSet
 
