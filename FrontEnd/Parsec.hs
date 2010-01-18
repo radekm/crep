@@ -101,7 +101,7 @@ skipSpacesAndComments :: Parsec String st ()
 skipSpacesAndComments = skipMany (space <|> comment)
   where
     space = oneOf whiteChars >> return () <?> "space"
-    comment = do char '#'
+    comment = do _ <- char '#'
                  skipMany (noneOf "\n\r")
                  (eof <|> eol)
             <?> "comment"

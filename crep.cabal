@@ -34,5 +34,5 @@ executable crep
                  uvector >= 0.1.0.4 && < 0.2, containers >= 0.3 && < 0.4
 
   ghc-options: -Wall -fwarn-unused-binds -fwarn-unused-imports
-               -fwarn-unused-matches -fno-warn-missing-signatures -O2
+               -fwarn-unused-matches -O2
 

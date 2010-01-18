@@ -181,6 +181,7 @@ instance Symbol Char where
 
   intersect (SC as) (SC bs) = SC $ mergeC (.&.) as bs
 
+mergeC :: (Word64 -> Word64 -> Word64) -> Pa Char -> Pa Char -> Pa Char
 mergeC op xss@(PC x _) yss@(PC y _)
   = merge (keyC x `op` keyC y) 0 {- any value -} NilC xss yss
   where
