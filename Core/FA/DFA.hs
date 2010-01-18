@@ -15,7 +15,6 @@ import qualified Data.Map as M
 import Data.Array.Vector hiding (lengthU, indexU)
 import Data.Array.Vector.UArr (lengthU, indexU)
 import Core.SymbSet
-import Core.Partition
 import Core.Rule
 import Core.RE
 import Control.Applicative ((<$>))
@@ -168,7 +167,7 @@ buildBrzoState dfa stVect reList
     -- current state into the map to prevent building it again when calling
     -- @buildBrzoState@ recursively.
     (dfa', newTrans) = foldl buildNextState (dfa {bStates = newStates}, [])
-                         (toCharSets alphabetPartition)
+                         (fromPartition alphabetPartition)
       where
         -- 
         buildNextState (auto, finTrans) blockOfPart

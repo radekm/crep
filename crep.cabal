@@ -2,7 +2,7 @@ name: crep
 version: 0.1
 license: BSD3
 license-file: LICENSE
-copyright: Radek Micek 2009
+copyright: Radek Micek 2009, 2010
 author: Radek Micek
 maintainer: Radek Micek <radek.micek@gmail.com>
 stability: experimental
@@ -10,7 +10,7 @@ category: Text
 synopsis: Competing regular expressions
 extra-source-files: tests/run.hs
 description: Text processing tool
-tested-with: GHC == 6.10.4
+tested-with: GHC == 6.12.1
 cabal-version: >= 1.4
 build-type: Simple
 
@@ -18,20 +18,21 @@ executable crep
   executable: crep
   main-is: Main.hs
   other-modules:
+    Core.FA.DFA
     Core.Partition
+    Core.Partition.Internal
     Core.RE
     Core.Regex
     Core.Rule
     Core.SymbSet
     Core.Utils
-    Core.FA.DFA
     FrontEnd.Parsec
     FrontEnd.RegexParser
     FrontEnd.RuleParser
 
-  build-depends: base >= 4.0, adaptive-containers >= 0.3,
-                 parsec >= 3.0.1, uvector >= 0.1.0.4, containers >= 0.2
+  build-depends: base >= 4.2 && < 5, parsec >= 3.0.1 && < 3.1,
+                 uvector >= 0.1.0.4 && < 0.2, containers >= 0.3 && < 0.4
 
   ghc-options: -Wall -fwarn-unused-binds -fwarn-unused-imports
-               -fwarn-unused-matches -fno-warn-missing-signatures
+               -fwarn-unused-matches -fno-warn-missing-signatures -O2
 

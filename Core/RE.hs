@@ -21,6 +21,7 @@ import qualified Core.Regex as R
 import Core.SymbSet
 import Core.Utils
 import Core.Partition
+import Data.Monoid
 
 -- |Type @'RE'@ represents regular expressions. @RE@ is lighter version
 -- of @Regex@ which is designed for use in automata constructions. Therefore
@@ -244,16 +245,16 @@ derivative c (RNot r)       = simpNot (derivative c r)
 -- of the alphabet where each block of the partition contains characters
 -- which give same derivatives for @r@ i.e. if @c1@ and @c2@ are in the same
 -- block then @'derivative' c1 r == 'derivative' c2 r@.
-partitionAlphabetByDerivatives :: RE -> Partition
+partitionAlphabetByDerivatives :: RE -> Pa Char
 partitionAlphabetByDerivatives re
   = case re of
-      RCharSet cs    -> fromCharSet cs
-      REpsilon       -> maxBlock
+      RCharSet cs    -> toPartition cs
+      REpsilon       -> mempty
       ROr rs         -> pam rs
       RAnd rs        -> pam rs
-      RConcat []     -> maxBlock
+      RConcat []     -> mempty
       RConcat (r:rs)
-        | nullable r -> intersectTwoPs (pa r) (pa $ RConcat rs)
+        | nullable r -> mappend (pa r) (pa $ RConcat rs)
         | otherwise  -> pa r
       RStar r        -> pa r
       RNot r         -> pa r
@@ -263,8 +264,8 @@ partitionAlphabetByDerivatives re
 
 -- |Similar to @'partitionAlphabetByDerivatives'@ but accepts list of regular
 -- expressions.
-partitionAlphabetByDerivativesMany :: [RE] -> Partition
+partitionAlphabetByDerivativesMany :: [RE] -> Pa Char
 partitionAlphabetByDerivativesMany rs
-  = intersectManyPs (map partitionAlphabetByDerivatives rs)
+  = mconcat (map partitionAlphabetByDerivatives rs)
 {-# INLINE partitionAlphabetByDerivativesMany #-}
 
