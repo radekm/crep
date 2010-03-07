@@ -34,10 +34,16 @@ module Core.Partition.Internal
   , valueC
   , toValueC
   , fromValueC
+  , reverseB
+  , oneB
+  , keyB
+  , valueB
+  , toValueB
+  , fromValueB
   ) where
 
 import Data.Monoid
-import Data.Word (Word64)
+import Data.Word (Word64, Word8, Word)
 import Data.Bits ((.|.), (.&.), complement, shiftL)
 
 -- |@'Pa' e@ represents partition of values of type @e@.
@@ -133,4 +139,76 @@ insertLookupC k d@(dict, size)
   = case lookup k dict of
       Just v  -> (v, d)
       Nothing -> let d' = ((k, size):dict, size+oneC) in (size, d')
+
+data instance Pa Word8 = PB {-# UNPACK #-} !Word (Pa Word8)
+                       | NilB
+                       deriving (Eq, Ord, Show)
+
+instance Monoid (Pa Word8) where
+  -- Partition with one block.
+  mempty = PB (toValueB maxBound) NilB
+
+  -- Intersection of two partitions.
+  mappend = intersect dictB NilB
+    where
+      intersect dict acc ass@(PB a as) bss@(PB b bs)
+        = case compare x y of
+            LT -> intersect dict' (PB (k .|. x) acc) as  bss
+            GT -> intersect dict' (PB (k .|. y) acc) ass bs
+            EQ -> intersect dict' (PB (k .|. y) acc) as  bs
+        where
+          x = valueB a
+          y = valueB b
+          combinedKey = (shiftB $ keyB a) .|. (keyB b)
+          (k, dict')  = insertLookupB combinedKey dict
+      intersect _ acc _ _ = reverseB acc NilB
+
+  -- Intersection of many partitions.
+  mconcat = foldl mappend mempty
+
+-- |Same as @reverse@ for lists, the second argument is accumulator.
+reverseB :: Pa Word8 -> Pa Word8 -> Pa Word8
+reverseB (PB p ps) acc = reverseB ps (PB p acc)
+reverseB NilB acc      = acc
+
+-- |Converts value to character.
+fromValueB :: Word -> Word8
+fromValueB = fromIntegral
+
+-- |Converts character to value.
+toValueB :: Word8 -> Word
+toValueB = fromIntegral
+
+-- |Returns key.
+keyB :: Word -> Word
+keyB = (.&. (complement $ oneB - 1))
+
+-- |Returns value.
+valueB :: Word -> Word
+valueB = (.&. (oneB - 1))
+
+-- |Left shift by the bit length of value.
+shiftB :: Word -> Word
+shiftB = (`shiftL` 8)
+
+-- |Lowest non-zero key.
+--
+-- That is the lowest number @n@ where @keyB n /= 0@.
+oneB :: Word
+oneB = shiftB 1
+
+-- |Dictionary is used for translation of combined keys to normal keys.
+type DictB = ([(Word, Word)], Word)
+
+-- |Empty dictionary.
+dictB :: DictB
+dictB = ([], 0)
+
+-- |Translates given combined key to normal key. Combined key is inserted to
+-- the dictionary if it was not there.
+insertLookupB :: Word -> DictB -> (Word, DictB)
+insertLookupB k d@(dict, size)
+  = case lookup k dict of
+      Just v  -> (v, d)
+      Nothing -> let d' = ((k, size):dict, size+oneB) in (size, d')
 

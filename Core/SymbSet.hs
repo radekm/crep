@@ -12,6 +12,7 @@
 module Core.SymbSet
   ( SymbSet
   , CharSet
+  , ByteSet
   , Range
   , mkRange
   , empty
@@ -28,7 +29,7 @@ module Core.SymbSet
 
 import Data.List (intersperse, sortBy, groupBy)
 import Data.Bits ((.|.), (.&.))
-import Data.Word (Word64)
+import Data.Word (Word64, Word8, Word)
 import Core.Utils
 import Core.Partition.Internal
 
@@ -80,8 +81,12 @@ class Symbol a where
   intersect :: SymbSet a -> SymbSet a -> SymbSet a
 
 -- |The type @'CharSet'@ represents the set of characters. It's type synonym
--- for @'SymbSet' Char@
+-- for @'SymbSet' Char@.
 type CharSet = SymbSet Char
+
+-- |The type @'ByteSet'@ represents the set of bytes. It's type synonym
+-- for @'SymbSet' Word8@.
+type ByteSet = SymbSet Word8
 
 moduleError :: String -> String -> a
 moduleError fun msg = error ("Core.SymbSet." ++ fun ++ ':':' ':msg)
@@ -223,4 +228,132 @@ instance Show (SymbSet Char) where
           prevC = case lastC of { Just c -> succ c ; _ -> minBound }
           curC  = fromValueC $ valueC p
       toRanges _ _ = []
+
+
+-- The code which follows is analagous to the previous code.
+
+instance Symbol Word8 where
+  newtype SymbSet Word8 = SB (Pa Word8)
+                        deriving (Eq, Ord)
+
+  data Range Word8 = RB {-# UNPACK #-} !Word8 {-# UNPACK #-} !Word8
+                   deriving (Eq, Ord)
+
+  empty = SB $ PB (toValueB maxBound) NilB
+
+  alphabet = SB $ PB (toValueB maxBound .|. oneB) NilB
+
+  mkRange a b
+    | a <= b    = RB a b
+    | otherwise = moduleError "mkRange" "invalid range"
+
+  fromRanges ranges = foldl union empty (map rangeToSet ranges)
+    where
+      -- Converts range to character set.
+      rangeToSet (RB a b)
+        | a == minBound = if b == maxBound then alphabet
+                                           else SB $ PB inside (PB after NilB)
+        | b == maxBound = SB $ PB before (PB inside NilB)
+        | otherwise     = SB $ PB before (PB inside (PB after NilB))
+        where
+          before = toValueB $ pred a 
+          after  = toValueB maxBound
+          inside = toValueB b .|. oneB
+
+  fromPartition
+    = map (SB . toSymbSet NilB)
+        -- Group triples by key.
+        . groupTriples . sortTriples
+        -- Each interval from the partition is converted to the triple
+        -- @(key, lastV, value)@ where @lastV@ is the value from the previous
+        -- interval.
+        --
+        -- First interval does not have @lastV@ and so we use @Nothing@.
+        . toTriples Nothing
+    where
+      toTriples lastV (PB p ps) = (keyB p, lastV, v):toTriples (Just v) ps
+        where
+          v = valueB p
+      toTriples _ NilB = []
+
+      sortTriples = sortBy (\(a, _, _) (b, _, _) -> compare a b)
+      groupTriples = groupBy (\(a, _, _) (b, _, _) -> a == b)
+
+      -- Takes list of triples and creates partition.
+      toSymbSet :: Pa Word8 -> [(Word, Maybe Word, Word)] -> Pa Word8
+      toSymbSet acc ((_, Just a, b):ts)
+        = toSymbSet (PB (b .|. oneB) (PB a acc)) ts
+      toSymbSet acc ((_, _, b):ts)
+        = toSymbSet (PB (b .|. oneB) acc) ts
+      toSymbSet acc@(PB lastV _) []
+        -- Add maxChar to the end.
+        | lastV /= maxByte = reverseB acc (PB maxByte NilB)
+        | otherwise        = reverseB acc NilB
+        where
+          maxByte = toValueB maxBound
+      toSymbSet _ _ = moduleError "toSymbSet" "no intervals"
+
+  toPartition (SB pa) = pa
+
+  member c (SB pa) = isInside pa
+    where
+      c' = toValueB c
+      isInside (PB p ps)
+        -- Byte belongs to the current interval.
+        | c' <= valueB p = keyB p /= 0
+        | otherwise      = isInside ps
+      isInside _ = moduleError "isInside" "invalid set"
+
+  firstSymb (SB (PB p _))
+    | keyB p /= 0     = minBound
+    | val /= maxBound = succ val
+    | otherwise       = moduleError "firstSymb" "empty set"
+    where
+      val = fromValueB $ valueB p
+  firstSymb _ = moduleError "firstSymb" "no intervals"
+
+  complement (SB pa) = SB $ compl pa
+    where
+      compl (PB p ps)
+        | keyB p /= 0 = PB (valueB p) $ compl ps
+        | otherwise   = PB (p .|. oneB) $ compl ps
+      compl NilB = NilB
+
+  union (SB as) (SB bs) = SB $ mergeB (.|.) as bs
+
+  intersect (SB as) (SB bs) = SB $ mergeB (.&.) as bs
+
+mergeB :: (Word -> Word -> Word) -> Pa Word8 -> Pa Word8 -> Pa Word8
+mergeB op xss@(PB x _) yss@(PB y _)
+  = merge (keyB x `op` keyB y) 0 {- any value -} NilB xss yss
+  where
+    merge lastK lastV acc ass@(PB a as) bss@(PB b bs)
+      = case compare a' b' of
+          LT -> cont a' as  bss
+          GT -> cont b' ass bs
+          EQ -> cont a' as  bs
+      where
+        a' = valueB a
+        b' = valueB b
+        k = keyB a `op` keyB b
+        cont v
+          | k == lastK = merge lastK v acc
+          | otherwise  = merge k v (PB (lastV .|. lastK) acc)
+    merge lastV lastK acc _ _ = reverseB acc (PB (lastV .|. lastK) NilB)
+mergeB _ _ _ = moduleError "mergeB" "no intervals"
+
+instance Show (Range Word8) where
+  showsPrec x (RB a b) = showsPrec x $ RC (toEnum $ fromIntegral a)
+                                          (toEnum $ fromIntegral b)
+
+instance Show (SymbSet Word8) where
+  showsPrec x (SB pa) = showsPrec x $ SC $ toCharSet pa
+    where
+      -- ByteSet to CharSet.
+      toCharSet (PB p ps)
+        | keyB p == 0 = PC valC            (toCharSet ps)
+        | otherwise   = PC (oneC .|. valC) (toCharSet ps)
+        where
+          valC = fromIntegral $ valueB p
+      toCharSet NilB = NilC
 
