@@ -171,11 +171,11 @@ reverseB :: Pa Word8 -> Pa Word8 -> Pa Word8
 reverseB (PB p ps) acc = reverseB ps (PB p acc)
 reverseB NilB acc      = acc
 
--- |Converts value to character.
+-- |Converts value to byte.
 fromValueB :: Word -> Word8
 fromValueB = fromIntegral
 
--- |Converts character to value.
+-- |Converts byte to value.
 toValueB :: Word8 -> Word
 toValueB = fromIntegral
 
