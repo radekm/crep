@@ -15,9 +15,12 @@ module Core.SymbSet
   , ByteSet
   , Range
   , mkRange
+  , loR
+  , hiR
   , empty
   , alphabet
   , fromRanges
+  , toRanges
   , toPartition
   , fromPartition
   , member
@@ -45,6 +48,12 @@ class Symbol a where
   -- Error is called when @a > b@.
   mkRange :: a -> a -> Range a
 
+  -- |Lower endpoint of the range.
+  loR :: Range a -> a
+
+  -- |Higher endpoint of the range.
+  hiR :: Range a -> a
+
   -- |Empty set of symbols.
   empty :: SymbSet a
 
@@ -54,6 +63,11 @@ class Symbol a where
   -- |The function (@'fromRanges' rs@) creates new symbol set containing
   -- symbols from ranges in the given list @rs@.
   fromRanges :: [Range a] -> SymbSet a
+
+  -- |Converts set of symbols to the list of ranges.
+  --
+  -- Property: @'fromRanges' . 'toRanges' = id@
+  toRanges :: SymbSet a -> [Range a]
 
   -- |Converts symbol set to partition with two blocks (symbols from original
   -- set and symbols from its complement).
@@ -110,6 +124,10 @@ instance Symbol Char where
     | a <= b    = RC a b
     | otherwise = moduleError "mkRange" "invalid range"
 
+  loR (RC a _) = a
+
+  hiR (RC _ b) = b
+
   fromRanges ranges = foldl union empty (map rangeToSet ranges)
     where
       -- Converts range to character set.
@@ -122,6 +140,16 @@ instance Symbol Char where
           before = toValueC $ pred a 
           after  = toValueC maxBound
           inside = toValueC b .|. oneC
+
+  toRanges (SC pa) = convert Nothing pa
+    where
+      convert lastC (PC p ps)
+        | keyC p /= 0 = RC prevC curC:convert (Just curC) ps
+        | otherwise   =               convert (Just curC) ps
+        where
+          prevC = case lastC of { Just c -> succ c ; _ -> minBound }
+          curC  = fromValueC $ valueC p
+      convert _ _ = []
 
   fromPartition
     = map (SC . toSymbSet NilC)
@@ -214,20 +242,11 @@ instance Show (Range Char) where
       esc c = escapeSpecial c
 
 instance Show (SymbSet Char) where
-  showsPrec _ (SC pa)
+  showsPrec _ pa
     = ('[':) . foldl (.) id xs . (']':)
     where
       xs :: [String -> String]
-      xs = intersperse (' ':) $ map shows (toRanges Nothing pa)
-
-      -- Convert partition to ranges.
-      toRanges lastC (PC p ps)
-        | keyC p /= 0 = RC prevC curC:toRanges (Just curC) ps
-        | otherwise   =               toRanges (Just curC) ps
-        where
-          prevC = case lastC of { Just c -> succ c ; _ -> minBound }
-          curC  = fromValueC $ valueC p
-      toRanges _ _ = []
+      xs = intersperse (' ':) $ map shows $ toRanges pa
 
 
 -- The code which follows is analagous to the previous code.
@@ -247,6 +266,10 @@ instance Symbol Word8 where
     | a <= b    = RB a b
     | otherwise = moduleError "mkRange" "invalid range"
 
+  loR (RB a _) = a
+
+  hiR (RB _ b) = b
+
   fromRanges ranges = foldl union empty (map rangeToSet ranges)
     where
       -- Converts range to character set.
@@ -259,6 +282,16 @@ instance Symbol Word8 where
           before = toValueB $ pred a 
           after  = toValueB maxBound
           inside = toValueB b .|. oneB
+
+  toRanges (SB pa) = convert Nothing pa
+    where
+      convert lastB (PB p ps)
+        | keyB p /= 0 = RB prevB curB:convert (Just curB) ps
+        | otherwise   =               convert (Just curB) ps
+        where
+          prevB = case lastB of { Just b -> succ b ; _ -> minBound }
+          curB  = fromValueB $ valueB p
+      convert _ _ = []
 
   fromPartition
     = map (SB . toSymbSet NilB)
