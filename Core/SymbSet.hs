@@ -174,12 +174,13 @@ instance Symbol Char where
       toSymbSet :: Pa Char -> [(Word64, Maybe Word64, Word64)] -> Pa Char
       toSymbSet acc ((_, Just a, b):ts)
         = toSymbSet (PC (b .|. oneC) (PC a acc)) ts
-      toSymbSet acc ((_, _, b):ts)
+      toSymbSet acc ((_, _, b):ts) -- Only for the first interval.
         = toSymbSet (PC (b .|. oneC) acc) ts
       toSymbSet acc@(PC lastV _) []
-        -- Add maxChar to the end.
-        | lastV /= maxChar = reverseC acc (PC maxChar NilC)
-        | otherwise        = reverseC acc NilC
+        -- Add maxChar to the CharSet.
+        | lastV /= oneC .|. maxChar = reverseC acc (PC maxChar NilC)
+        -- Only one CharSet has maxChar inside.
+        | otherwise                 = reverseC acc NilC
         where
           maxChar = toValueC maxBound
       toSymbSet _ _ = moduleError "toSymbSet" "no intervals"
@@ -316,12 +317,14 @@ instance Symbol Word8 where
       toSymbSet :: Pa Word8 -> [(Word, Maybe Word, Word)] -> Pa Word8
       toSymbSet acc ((_, Just a, b):ts)
         = toSymbSet (PB (b .|. oneB) (PB a acc)) ts
-      toSymbSet acc ((_, _, b):ts)
+      toSymbSet acc ((_, _, b):ts) -- Just one ByteSet starts with minBound.
         = toSymbSet (PB (b .|. oneB) acc) ts
       toSymbSet acc@(PB lastV _) []
-        -- Add maxChar to the end.
-        | lastV /= maxByte = reverseB acc (PB maxByte NilB)
-        | otherwise        = reverseB acc NilB
+        -- Add maxByte to the end.
+        | lastV /= oneB .|. maxByte = reverseB acc (PB maxByte NilB)
+        -- Just one ByteSet has maxByte at the end (maxByte is member of such
+        -- ByteSet).
+        | otherwise                 = reverseB acc NilB
         where
           maxByte = toValueB maxBound
       toSymbSet _ _ = moduleError "toSymbSet" "no intervals"
