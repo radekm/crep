@@ -11,16 +11,133 @@
 --
 module Core.FA.DFA where
 
+import Prelude hiding (last)
 import qualified Data.Map as M
+import Data.Graph (SCC(..), dfs, stronglyConnCompR)
+import Data.Tree (flatten)
 import Data.Array.Unboxed
+import Data.Array.MArray
+import Data.Array.ST
 import Core.SymbSet
 import Core.Rule
 import Core.RE
-import Control.Arrow (second)
+import Control.Monad.ST (ST, runST)
+import Control.Monad
+import Control.Arrow ((***), second)
 
 -- |Number of the state.
 newtype StNum = StN Int
-              deriving (Eq, Ord, Show)
+              deriving (Eq, Ord, Enum, Show, Ix, IArray UArray)
+
+state2Int :: StNum -> Int
+state2Int (StN i) = i
+
+data StateData a
+  = SD {
+         -- List of the rules which match in this state.
+         sdMatches :: [RuNum]
+         -- Priority of the rules which match in this state.
+       , sdMatchPrio :: Maybe Priority
+         -- Highest priority of the rule which is reachable from this state
+         -- by some non-empty word.
+       , sdReachablePrio :: Maybe Priority
+         -- Transitions from this state. Every symbol appears just in one
+         -- symbol set and every state appears at most once.
+       , sdTrans :: [(SymbSet a, StNum)]
+       }
+
+newtype DFA a = DFA (Array StNum (StateData a))
+
+unDFA :: DFA a -> Array StNum (StateData a)
+unDFA (DFA a) = a
+
+-- |Makes deterministic finite state automaton from regular expressions.
+resToDFA :: [(RE, Priority)] -> DFA Char
+resToDFA rsPrio = toDFA rsPrio $ brzoCons rsPrio
+
+-- |Returns list with reachable states. First state in the list must
+-- be initial state.
+reachable :: DFA a -> [StNum]
+reachable dfa = map StN $ flatten $ head $ dfs graph [0]
+  where
+    dfa'   = unDFA dfa
+    (a, b) = (state2Int *** state2Int) (bounds dfa')
+    graph  = listArray (a, b) [map (state2Int . snd)
+                                   (sdTrans $ dfa' ! StN i) | i <- [a..b]]
+
+-- |Removes states which are not reachable from the initial state. Remaining
+-- states are renumbered.
+removeUnreachableStates :: DFA a -> DFA a
+removeUnreachableStates dfa = DFA 
+    $ listArray (StN 0, last) [updateStNums $ dfa' ! i | i <- [StN 0..last]]
+  where
+    dfa' = unDFA dfa
+    rs   = reachable dfa
+    last = StN $ length rs - 1
+
+    newStNums :: UArray StNum StNum
+    newStNums = accumArray (flip const) (StN (-1)) (bounds dfa')
+                                                   (zip rs [StN 0..])
+
+    -- Updates state numbers in transitions inside StateData.
+    updateStNums (SD ms m r ts) = SD ms m r $ map (second (newStNums !)) ts
+
+-- |Strongly connected components topologically sorted.
+scc :: DFA a -> [SCC (Maybe Priority, StNum, [StNum])]
+scc = stronglyConnCompR . map convertState . assocs . unDFA
+  where
+    convertState (i, st) = (sdMatchPrio st, i, map snd $ sdTrans st)
+
+computeReachablePrio :: DFA a -> DFA a
+computeReachablePrio dfa
+  = DFA $ listArray bnds [newStateData i | i <- uncurry enumFromTo bnds]
+  where
+    dfa' = unDFA dfa
+    bnds = bounds dfa'
+    cs   = scc dfa
+
+    defPr                  = minBound
+    fromPrio (Just (Pr i)) = i
+    fromPrio _             = defPr
+
+    newStateData i = let sd    = dfa' ! i
+                         newPr = maxReachablePrio ! i
+                     in sd {sdReachablePrio = if newPr /= defPr
+                                                then Just $ Pr newPr
+                                                else Nothing}
+
+    maxReachablePrio :: UArray StNum Int
+    maxReachablePrio = runST computeMaxReachablePrioForEachState
+
+    computeMaxReachablePrioForEachState :: ST s (UArray StNum Int)
+    computeMaxReachablePrioForEachState
+      = do maxPrio <- (newArray bnds defPr :: ST s (STUArray s StNum Int))
+           forM_ cs (handleSCC maxPrio)
+           unsafeFreeze maxPrio
+
+    handleNeighbours a (n:ns)
+      = do inReach <- readArray a n
+           rest    <- handleNeighbours a ns
+           return $ maximum [inReach, rest, fromPrio (sdMatchPrio $ dfa' ! n)]
+    handleNeighbours _ _
+      = return defPr
+                                   
+    handleSCC a (CyclicSCC xs)
+      = do curMax <- foldM handleVertex defPr xs
+           forM_ xs $ \(_, st, _) -> writeArray a st curMax
+      where
+        handleVertex curMax (pr, _, ns)
+          = do neighbours <- handleNeighbours a ns
+               return $ maximum [curMax, neighbours, fromPrio pr]
+
+    handleSCC a (AcyclicSCC (_, st, ns))
+      = do neighbours <- handleNeighbours a ns
+           writeArray a st neighbours
+
+-- |Converts list to unboxed array.
+toU :: IArray UArray a => Int -> [a] -> UArray Int a
+toU len xs = listArray (0, len - 1) xs
+
 
 ------------------------------------------------------------------------------
 -- Brzozowski's construction of DFA
@@ -93,27 +210,23 @@ data BrzoDFA
          , bVectLength :: Int
          }
 
--- |Converts list to unboxed array.
-toArray :: IArray UArray a => Int -> [a] -> UArray Int a
-toArray len xs = array (0, len - 1) (zip [0..] xs)
-
 -- |Constructs Brzozowski's automaton for given regular expressions.
 brzoCons :: [(RE, Priority)] -> BrzoDFA
 brzoCons rsPrio
   = fst $ buildBrzoState (BDFA mapREs M.empty [] wcmFunc len)
-                         (toArray len reNums) rs
+                         (toU len reNums) rs
   where
     (rs, ps) = unzip rsPrio
     len   = length rsPrio
     -- Rule numbers and corresponding priorities.
     rsNum = reverse $ zip [0..] ps
     -- What can match function.
-    wcmList = map (\i -> let prio = ps !! i
-                         -- Highest number of the rule
-                         -- which has priority @prio@.
-                         in fst $ head $ filter ((== prio) . snd) rsNum)
-                  [0..(len-1)]
-    wcmFunc (RuN i) = RuN $ toArray len wcmList ! i
+    wcmFunc (RuN i) = RuN $ toU len [ let prio = ps !! j
+                                      -- Highest number of the rule which
+                                      -- has priority @prio@.
+                                      in fst $ head
+                                             $ filter ((== prio) . snd) rsNum
+                                    | j <- [0..(len-1)]] ! i
     -- Add regular expressions to the map.
     (mapREs, reNums) = addREList M.empty rs
 
@@ -185,7 +298,7 @@ buildBrzoState dfa stVect reList
             -- expression which were not in @bREs auto@ are added to @newREs@.
             (newREs, stList') = addREList (bREs auto) reList'
             -- Vector with regular expression numbers.
-            stVect' = toArray (bVectLength dfa) (reverse stList')
+            stVect' = toU (bVectLength dfa) (reverse stList')
             -- Add regular expressions to automaton.
             auto' = auto {bREs=newREs} 
 
@@ -193,4 +306,16 @@ buildBrzoState dfa stVect reList
 
     newDFA = dfa' {bStData = BSD {bsdStNum=newStNum, bsdTrans=newTrans
                                  ,bsdMatches=newMatches}:bStData dfa'}
+
+-- |Converts BrzoDFA to DFA.
+toDFA :: [(RE, Priority)] -> BrzoDFA -> DFA Char
+toDFA rsPrio brzoDFA
+  = DFA $ array
+      (StN 0, StN $ M.size (bStates brzoDFA) - 1) $
+      map (\st -> let matches                = bsdMatches st
+                      getMatchPrio (RuN m:_) = Just $ snd (rsPrio !! m)
+                      getMatchPrio _         = Nothing
+                  in (bsdStNum st, SD matches (getMatchPrio matches) Nothing
+                                      (bsdTrans st)))
+          (bStData brzoDFA)
 
