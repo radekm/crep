@@ -1,5 +1,5 @@
-{-# LANGUAGE TypeFamilies      #-}
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 -- |
 -- Module    : Core.FA.DFA
@@ -12,12 +12,10 @@
 module Core.FA.DFA where
 
 import qualified Data.Map as M
-import Data.Array.Vector hiding (lengthU, indexU)
-import Data.Array.Vector.UArr (lengthU, indexU)
+import Data.Array.Unboxed
 import Core.SymbSet
 import Core.Rule
 import Core.RE
-import Control.Applicative ((<$>))
 import Control.Arrow (second)
 
 -- |Number of the state.
@@ -33,7 +31,7 @@ newtype StNum = StN Int
 
 -- |Regular expression number.
 newtype RENum = REN Int
-              deriving (Eq, Ord, Show)
+              deriving (Eq, Ord, Show, IArray UArray)
 
 -- |Structure which represents data of the state in Brzozowski's automaton.
 data BrzoStateData = BSD { 
@@ -51,9 +49,10 @@ data BrzoStateData = BSD {
 --
 -- States in Brzozowski's construction are normally represented by vectors
 -- of regular expressions. But we will represent them by vectors of numbers
--- (@UArr RENum@). Each number in the vector represents regular expression.
--- The main advantage of this representation is that we can compare two
--- vectors of numbers faster than two vectors of regular expressions.
+-- (@UArray Int RENum@). Each number in the vector represents regular
+-- expression. The main advantage of this representation is that we can
+-- compare two vectors of numbers faster than two vectors of regular
+-- expressions.
 --
 -- To associate number with regular expression we use map @bREs@. When
 -- the regular expression is in the map we use the number from the map
@@ -85,28 +84,36 @@ data BrzoDFA
            -- Maps regular expressions to numbers. 
            bREs :: M.Map RE RENum
            -- Maps state vectors to state numbers.
-         , bStates :: M.Map (UArr RENum) StNum
+         , bStates :: M.Map (UArray Int RENum) StNum
            -- Data of states.
          , bStData :: [BrzoStateData]
            -- Which rules can match.
          , bWhatCanMatch :: RuNum -> RuNum
+           -- Count of the rules.
          , bVectLength :: Int
          }
+
+-- |Converts list to unboxed array.
+toArray :: IArray UArray a => Int -> [a] -> UArray Int a
+toArray len xs = array (0, len - 1) (zip [0..] xs)
 
 -- |Constructs Brzozowski's automaton for given regular expressions.
 brzoCons :: [(RE, Priority)] -> BrzoDFA
 brzoCons rsPrio
-  = fst $ buildBrzoState (BDFA mapREs M.empty [] wtmFunc len)
-                         (toU reNums) rs
+  = fst $ buildBrzoState (BDFA mapREs M.empty [] wcmFunc len)
+                         (toArray len reNums) rs
   where
     (rs, ps) = unzip rsPrio
     len   = length rsPrio
-    -- Priorities and corresponding "rule numbers".
-    rsNum = zip [0..] ps
+    -- Rule numbers and corresponding priorities.
+    rsNum = reverse $ zip [0..] ps
     -- What can match function.
-    wtmList = map (\i -> fst $ last $ filter ((== (ps !! i)) . snd) rsNum)
+    wcmList = map (\i -> let prio = ps !! i
+                         -- Highest number of the rule
+                         -- which has priority @prio@.
+                         in fst $ head $ filter ((== prio) . snd) rsNum)
                   [0..(len-1)]
-    wtmFunc (RuN i) = RuN $ indexU (toU wtmList) i
+    wcmFunc (RuN i) = RuN $ toArray len wcmList ! i
     -- Add regular expressions to the map.
     (mapREs, reNums) = addREList M.empty rs
 
@@ -128,8 +135,7 @@ addRE mapREs r = case oldRENum of
 
 -- |Adds all regular expressions in the list to the map and returns their
 -- numbers.
-addREList :: M.Map RE RENum -> [RE]
-          -> (M.Map RE RENum, [RENum])
+addREList :: M.Map RE RENum -> [RE] -> (M.Map RE RENum, [RENum])
 addREList mapREs = second reverse . foldl addOneRE (mapREs, [])
   where
     addOneRE (oldREs, reNumList) r
@@ -142,7 +148,7 @@ addREList mapREs = second reverse . foldl addOneRE (mapREs, [])
 --
 -- If the state is not in the map we build its transitions and all states
 -- which are reachable from this state.
-buildBrzoState :: BrzoDFA -> UArr RENum -> [RE] -> (BrzoDFA, StNum)
+buildBrzoState :: BrzoDFA -> UArray Int RENum -> [RE] -> (BrzoDFA, StNum)
 buildBrzoState dfa stVect reList
   = case oldStNum of
       Just stNum -> (dfa, stNum)
@@ -179,7 +185,7 @@ buildBrzoState dfa stVect reList
             -- expression which were not in @bREs auto@ are added to @newREs@.
             (newREs, stList') = addREList (bREs auto) reList'
             -- Vector with regular expression numbers.
-            stVect' = toU (reverse stList')
+            stVect' = toArray (bVectLength dfa) (reverse stList')
             -- Add regular expressions to automaton.
             auto' = auto {bREs=newREs} 
 
@@ -187,32 +193,4 @@ buildBrzoState dfa stVect reList
 
     newDFA = dfa' {bStData = BSD {bsdStNum=newStNum, bsdTrans=newTrans
                                  ,bsdMatches=newMatches}:bStData dfa'}
-
-instance UA RENum where
-  newtype UArr  RENum   = UARENum (UArr Int)
-  newtype MUArr RENum s = MUARENum (MUArr Int s)
-
-  lengthU (UARENum a) = lengthU a
-  indexU (UARENum a) = REN . indexU a
-  sliceU (UARENum a) i = UARENum . sliceU a i
-
-  lengthMU (MUARENum a) = lengthMU a
-  newMU i = MUARENum <$> newMU i
-  readMU (MUARENum a) i = REN <$> readMU a i
-  writeMU (MUARENum a) i (REN x) = writeMU a i x
-  copyMU (MUARENum dest) i (UARENum src) = copyMU dest i src
-  unsafeFreezeMU (MUARENum a) i = UARENum <$> unsafeFreezeMU a i
-
-  memcpyMU     (MUARENum a) (MUARENum b) = memcpyMU a b
-  memcpyOffMU  (MUARENum a) (MUARENum b) = memcpyOffMU a b
-  memmoveOffMU (MUARENum a) (MUARENum b) = memmoveOffMU a b
-
-instance Ord (UArr RENum) where
-  -- We assume that both vectors have same length.
-  compare a b = cmp 0 (lengthU a)
-    where
-      cmp i len | i < len   = case compare (indexU a i) (indexU b i) of
-                                EQ -> cmp (i+1) len
-                                r  -> r
-                | otherwise = EQ
 
