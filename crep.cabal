@@ -18,7 +18,7 @@ executable crep
   executable: crep
   main-is: Main.hs
   other-modules:
-    Core.FA.DFA
+    Core.DFA
     Core.Partition
     Core.Partition.Internal
     Core.RE

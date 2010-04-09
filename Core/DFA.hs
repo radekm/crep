@@ -2,14 +2,14 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 -- |
--- Module    : Core.FA.DFA
+-- Module    : Core.DFA
 -- Copyright : (c) Radek Micek 2009, 2010
 -- License   : BSD3
 -- Stability : experimental
 --
 -- Deterministic finite state automaton.
 --
-module Core.FA.DFA where
+module Core.DFA where
 
 import qualified Data.Map as M
 import Data.Graph (SCC(..), dfs, stronglyConnCompR)

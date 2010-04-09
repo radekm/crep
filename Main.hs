@@ -5,9 +5,9 @@ import System.Environment (getArgs)
 import FrontEnd.RuleParser (parseRules)
 import Core.Rule (Rule(..), Priority(..))
 import Core.RE (toRE)
-import Core.FA.DFA (resToDFA, unDFA, state2Int, removeUnreachableStates
-                   ,computeReachablePrio, removeTransitionsToLowerPrio
-                   ,minimize)
+import Core.DFA (resToDFA, unDFA, state2Int, removeUnreachableStates
+                ,computeReachablePrio, removeTransitionsToLowerPrio
+                ,minimize)
 import Control.Applicative ((<$>))
 import Data.Array
 
