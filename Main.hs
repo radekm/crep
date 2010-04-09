@@ -6,7 +6,8 @@ import FrontEnd.RuleParser (parseRules)
 import Core.Rule (Rule(..), Priority(..))
 import Core.RE (toRE)
 import Core.FA.DFA (resToDFA, unDFA, state2Int, removeUnreachableStates
-                   ,computeReachablePrio)
+                   ,computeReachablePrio, removeTransitionsToLowerPrio
+                   ,minimize)
 import Control.Applicative ((<$>))
 import Data.Array
 
@@ -26,8 +27,12 @@ main = do rulesFile <- head <$> getArgs
                                rules
               -- Build Brzozowski's automaton and print number of its states.
               putStrLn "Starting Brzozowski's construction..."
-              let dfa = removeUnreachableStates $ computeReachablePrio
+              let dfa =  minimize
+                          $ removeUnreachableStates
+                          $ removeTransitionsToLowerPrio
+                          $ computeReachablePrio
                           $ resToDFA reList
               let numOfStates = state2Int (snd $ bounds $ unDFA dfa) + 1
               putStrLn $ "Automaton has " ++ show numOfStates ++ " states"
+--              putStrLn $ showDFA dfa
 

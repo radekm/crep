@@ -10,7 +10,8 @@
 -- Set of symbols and range of symbols.
 --
 module Core.SymbSet
-  ( SymbSet
+  ( Symbol
+  , SymbSet
   , CharSet
   , ByteSet
   , Range

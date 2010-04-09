@@ -11,13 +11,14 @@
 --
 module Core.FA.DFA where
 
-import Prelude hiding (last)
 import qualified Data.Map as M
 import Data.Graph (SCC(..), dfs, stronglyConnCompR)
 import Data.Tree (flatten)
 import Data.Array.Unboxed
 import Data.Array.MArray
 import Data.Array.ST
+import Data.Maybe (isNothing)
+import Data.List (groupBy, sortBy, unfoldr)
 import Core.SymbSet
 import Core.Rule
 import Core.RE
@@ -46,7 +47,18 @@ data StateData a
        , sdTrans :: [(SymbSet a, StNum)]
        }
 
+-- Initial state has index 0.
 newtype DFA a = DFA (Array StNum (StateData a))
+
+{-
+showDFA :: DFA a -> String
+showDFA (DFA dfa')
+  = unlines [let sd = dfa' ! i
+             in show (i, map snd $ sdTrans sd, sdMatches sd
+                     ,sdReachablePrio sd) | i <- [a..b]]
+  where
+    (a, b) = bounds dfa'
+-}
 
 unDFA :: DFA a -> Array StNum (StateData a)
 unDFA (DFA a) = a
@@ -55,12 +67,11 @@ unDFA (DFA a) = a
 resToDFA :: [(RE, Priority)] -> DFA Char
 resToDFA rsPrio = toDFA rsPrio $ brzoCons rsPrio
 
--- |Returns list with reachable states. First state in the list must
--- be initial state.
+-- |Returns list with reachable states. First state in the list is initial
+-- state.
 reachable :: DFA a -> [StNum]
-reachable dfa = map StN $ flatten $ head $ dfs graph [0]
+reachable (DFA dfa') = map StN $ flatten $ head $ dfs graph [0]
   where
-    dfa'   = unDFA dfa
     (a, b) = (state2Int *** state2Int) (bounds dfa')
     graph  = listArray (a, b) [map (state2Int . snd)
                                    (sdTrans $ dfa' ! StN i) | i <- [a..b]]
@@ -69,11 +80,11 @@ reachable dfa = map StN $ flatten $ head $ dfs graph [0]
 -- states are renumbered.
 removeUnreachableStates :: DFA a -> DFA a
 removeUnreachableStates dfa = DFA 
-    $ listArray (StN 0, last) [updateStNums $ dfa' ! i | i <- [StN 0..last]]
+    $ array (StN 0, lastI) [(newStNums ! i, updateStNums $ dfa' ! i) | i <- rs]
   where
-    dfa' = unDFA dfa
-    rs   = reachable dfa
-    last = StN $ length rs - 1
+    dfa'  = unDFA dfa
+    rs    = reachable dfa
+    lastI = StN $ length rs - 1
 
     newStNums :: UArray StNum StNum
     newStNums = accumArray (flip const) (StN (-1)) (bounds dfa')
@@ -88,6 +99,8 @@ scc = stronglyConnCompR . map convertState . assocs . unDFA
   where
     convertState (i, st) = (sdMatchPrio st, i, map snd $ sdTrans st)
 
+-- |For each state computes highest priority which can match
+-- (i.e. value of sdReachablePrio).
 computeReachablePrio :: DFA a -> DFA a
 computeReachablePrio dfa
   = DFA $ listArray bnds [newStateData i | i <- uncurry enumFromTo bnds]
@@ -96,7 +109,11 @@ computeReachablePrio dfa
     bnds = bounds dfa'
     cs   = scc dfa
 
+    -- We save all reachable priorities into mutable unboxed array and so
+    -- we cannot use Maybe type. We instead use Int where minBound is treated
+    -- as Nothing.
     defPr                  = minBound
+    -- Converts Maybe Priority into Int.
     fromPrio (Just (Pr i)) = i
     fromPrio _             = defPr
 
@@ -112,9 +129,12 @@ computeReachablePrio dfa
     computeMaxReachablePrioForEachState :: ST s (UArray StNum Int)
     computeMaxReachablePrioForEachState
       = do maxPrio <- (newArray bnds defPr :: ST s (STUArray s StNum Int))
-           forM_ cs (handleSCC maxPrio)
+           forM_ cs (handleSCC maxPrio)  -- Process SCCs.
            unsafeFreeze maxPrio
 
+    -- This can handle both vertices from the current SCC (they still have
+    -- defPr as their maximum reachable priority) and vertices from previously
+    -- processed SCCs.
     handleNeighbours a (n:ns)
       = do inReach <- readArray a n
            rest    <- handleNeighbours a ns
@@ -122,6 +142,7 @@ computeReachablePrio dfa
     handleNeighbours _ _
       = return defPr
                                    
+    -- All vetices in the strongly connected component are in the cycle.
     handleSCC a (CyclicSCC xs)
       = do curMax <- foldM handleVertex defPr xs
            forM_ xs $ \(_, st, _) -> writeArray a st curMax
@@ -130,9 +151,131 @@ computeReachablePrio dfa
           = do neighbours <- handleNeighbours a ns
                return $ maximum [curMax, neighbours, fromPrio pr]
 
+    -- Just one vertex which is not part of any cycle.
     handleSCC a (AcyclicSCC (_, st, ns))
       = do neighbours <- handleNeighbours a ns
            writeArray a st neighbours
+
+-- |Removes all transitions which lead only to the states with strictly lower
+-- priority. More preciously: new state "cesspit" is addded and all such
+-- transitions are redirected to cesspit. Automaton cannot leave cesspit.
+removeTransitionsToLowerPrio :: Symbol a => DFA a -> DFA a
+removeTransitionsToLowerPrio (DFA dfa')
+  = DFA $ array (a, cesspit)
+        $ (cesspit, cpData):[(i, newStateData i) | i <- [a..b]]
+  where
+    (a, b) = bounds dfa'
+
+    cesspit = succ b
+    cpData  = SD [] Nothing Nothing [(alphabet, cesspit)]
+
+    newStateData i
+      -- No regular expression matches in this state => we leave it untouched.
+      | isNothing matchPr = orig
+      -- All transitions go to the states states with lower priority.
+      | matchPr > reachPr = SD ms matchPr Nothing [(alphabet, cesspit)]
+      -- Some transitions may lead to the states with lower priority.
+      -- And if there are any we redirect them to the cesspit.
+      -- Important thing is that sdReachablePrio remains same.
+      | otherwise         = SD ms matchPr reachPr (map updateTrans trans)
+      where
+        orig@(SD ms matchPr reachPr trans) = dfa' ! i
+
+        updateTrans t@(symbols, st)
+          -- Only states with lower priority are reachable by transition @t@.
+          | p < matchPr = (symbols, cesspit)
+          | otherwise   = t
+          where
+            sd = dfa' ! st
+            p  = max (sdMatchPrio sd) (sdReachablePrio sd)
+
+-- |Sorts the list of pairs by the second value. Then groups values
+-- in the list by the second value too. 
+sortAndGroupBySnd :: Ord b => [(a, b)] -> [[(a, b)]]
+sortAndGroupBySnd = groupBy (co2 (==) snd) . sortBy (co2 compare snd)
+  where
+    co2 f t a b = f (t a) (t b)
+
+-- |Normalized list contains each state at most once.
+normalizeTrans :: (Symbol a, Ord dest) => [(SymbSet a, dest)]
+               -> [(SymbSet a, dest)]
+normalizeTrans = map (\xs@((_, st):_) -> (foldl union empty $ map fst xs, st))
+               . sortAndGroupBySnd
+
+newtype EqClassId = ECI Int
+                  deriving (Eq, Ord, Enum, IArray UArray)
+
+id2Int :: EqClassId -> Int
+id2Int (ECI i) = i
+
+type EqClass = [StNum]
+
+type Equivalence = [EqClass]
+
+-- |Given equivalence on states it returns number of equivalence classes
+-- and array with equivalence class for each state.
+arrState2ClassId :: (StNum, StNum)
+                 -> Equivalence
+                 -> (Int, UArray StNum EqClassId)
+arrState2ClassId b = (id2Int *** array b) . foldl f (ECI 1, [])
+  where
+    f (nextId, stateIdPairs) eqClass
+      = case eqClass of
+          -- Equivalence class contains initial state.
+          (StN 0:_)
+            -> (nextId,      [(st, ECI 0)  | st <- eqClass] ++ stateIdPairs)
+          _ -> (succ nextId, [(st, nextId) | st <- eqClass] ++ stateIdPairs)
+
+-- |Computes k-equivalences of the states in the automaton. Returned list
+-- contains 0-equivalence, 1-equivalence, 2-equivalence ...
+--
+-- Note: k-equivalence means that states cannot be differentiated by words
+-- with length <= k.
+kEquivalences :: (Symbol a, Ord (SymbSet a)) => DFA a -> [Equivalence]
+kEquivalences (DFA dfa') = initialEquivalence:unfoldr refineEquivalence
+                                                      initialEquivalence
+  where
+    -- Two states belong to the same eq. class iff they have equal sdMatches.
+    initialEquivalence :: Equivalence
+    initialEquivalence = map (map fst) $ sortAndGroupBySnd
+                                       $ map (id *** sdMatches) $ assocs dfa'
+
+    -- Returns Nothing when no equivalence class was refined.
+    refineEquivalence :: Equivalence -> Maybe (Equivalence, Equivalence)
+    refineEquivalence e = if refined then Just (newCs, newCs) else Nothing
+      where       
+        (refined, newCs) = foldl refineClass (False, []) e
+
+        refineClass (flag, cs) c
+          = case map (map fst) $ sortAndGroupBySnd $ map eachState c of
+              [_] -> (flag, c:cs)  -- Class was not refined.
+              xs  -> (True, xs ++ cs)
+          where
+            -- Returns state and transitions into equivalence classes.
+            eachState st = (st, normalizeTrans $ map (second st2Id)
+                                                     (sdTrans $ dfa' ! st))
+
+        -- Maps states to their equivalence classes.
+        st2Id :: StNum -> EqClassId
+        st2Id = (!) (snd $ arrState2ClassId (bounds dfa') e)
+
+-- |Given the equivalence it returns quotient automaton. Initial state 
+mergeEquivalentStates :: Symbol a => DFA a -> Equivalence -> DFA a
+mergeEquivalentStates (DFA dfa') equiv
+  = DFA $ array (StN 0, StN $ numClasses - 1) (map eachEqClass equiv)
+  where
+    (numClasses, arrStId) = arrState2ClassId (bounds dfa') equiv
+    st2Equiv              = StN . id2Int . (arrStId !)
+    eachEqClass cs
+      = (st2Equiv st, sd {sdTrans = normalizeTrans $ map (second st2Equiv)
+                                                         (sdTrans sd)})
+      where
+        st = head cs
+        sd = dfa' ! st
+
+-- |Moore's minimization.
+minimize :: (Symbol a, Ord (SymbSet a)) => DFA a -> DFA a
+minimize dfa = mergeEquivalentStates dfa $ last $ kEquivalences dfa
 
 -- |Converts list to unboxed array.
 toU :: IArray UArray a => Int -> [a] -> UArray Int a

@@ -19,7 +19,7 @@ data Rule = Rule !Priority !PrefLength Regex Subst
 
 -- |Priority of the rule.
 newtype Priority = Pr Int
-                 deriving (Eq, Show)
+                 deriving (Eq, Ord, Show)
 
 -- |Flag whether the rule prefers to select shortest or longest words.
 data PrefLength = Shortest | Longest
