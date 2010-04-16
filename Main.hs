@@ -7,7 +7,7 @@ import Core.Rule (Rule(..), Priority(..))
 import Core.RE (toRE)
 import Core.DFA (resToDFA, unDFA, state2Int, removeUnreachableStates
                 ,computeReachablePrio, removeTransitionsToLowerPrio
-                ,minimize)
+                ,kMinimize)
 import Control.Applicative ((<$>))
 import Data.Array
 
@@ -27,7 +27,7 @@ main = do rulesFile <- head <$> getArgs
                                rules
               -- Build Brzozowski's automaton and print number of its states.
               putStrLn "Starting Brzozowski's construction..."
-              let dfa =  minimize
+              let dfa = kMinimize maxBound
                           $ removeUnreachableStates
                           $ removeTransitionsToLowerPrio
                           $ computeReachablePrio

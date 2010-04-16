@@ -281,8 +281,8 @@ minimize dfa = mergeEquivalentStates dfa $ last $ kEquivalences dfa
 
 -- |Moore's k-minimization. States which cannot be differentiated by words
 -- with length <= k are merged.
-kMinimize :: (Symbol a, Ord (SymbSet a)) => DFA a -> Int -> DFA a
-kMinimize dfa k = mergeEquivalentStates dfa
+kMinimize :: (Symbol a, Ord (SymbSet a)) => Int -> DFA a -> DFA a
+kMinimize k dfa = mergeEquivalentStates dfa
                     $ last $ take k $ kEquivalences dfa
 
 -- |Converts list to unboxed array.
