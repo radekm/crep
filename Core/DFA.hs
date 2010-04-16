@@ -273,9 +273,17 @@ mergeEquivalentStates (DFA dfa') equiv
         st = head cs
         sd = dfa' ! st
 
+{-
 -- |Moore's minimization.
 minimize :: (Symbol a, Ord (SymbSet a)) => DFA a -> DFA a
 minimize dfa = mergeEquivalentStates dfa $ last $ kEquivalences dfa
+-}
+
+-- |Moore's k-minimization. States which cannot be differentiated by words
+-- with length <= k are merged.
+kMinimize :: (Symbol a, Ord (SymbSet a)) => DFA a -> Int -> DFA a
+kMinimize dfa k = mergeEquivalentStates dfa
+                    $ last $ take k $ kEquivalences dfa
 
 -- |Converts list to unboxed array.
 toU :: IArray UArray a => Int -> [a] -> UArray Int a
