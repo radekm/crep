@@ -17,7 +17,6 @@ data Regex = REpsilon
            | ROr [Regex]
            | RAnd [Regex]
            | RConcat [Regex]
-           | RStar !Laziness Regex
            | RCounter !Laziness !Int !(Maybe Int) Regex
            | RNot Regex
            | RGroup !Int Regex
@@ -26,7 +25,7 @@ data Laziness = Greedy | Lazy
               deriving Eq
 
 data Descriptor
-  = Epsilon | Atom | ONot | OCounter | OStar | OConcat | OAnd | OOr
+  = Epsilon | Atom | ONot | OCounter | OConcat | OAnd | OOr
   deriving (Eq, Ord)
 
 data NaryOperator = OpConcat | OpAnd | OpOr
@@ -43,8 +42,6 @@ instance Show Regex where
       shows' (ROr rs)       = showsNary OpOr     rs
       shows' (RAnd rs)      = showsNary OpAnd    rs
       shows' (RConcat rs)   = showsNary OpConcat rs
-      shows' (RStar Lazy r) = (wrap OStar r . ("*?" ++), OStar)
-      shows' (RStar _ r)    = (wrap OStar r . ('*':),    OStar)
       shows' (RNot r)       = (('^':) . wrap ONot r,     ONot)
       shows' (RGroup _ r)   = (('(':) . shows r . (')':), Atom)
       shows' (RCounter lazy minRep maxRep r)
@@ -75,7 +72,7 @@ instance Show Regex where
       -- and wrapped in parentheses if necessary.
       wrap parent r
         | (parent >= OConcat && parent >= child)
-            || (child == ONot && parent `elem` [OStar, OCounter])
+            || (child == ONot && parent == OCounter)
             || child == Atom
           = repr
         | otherwise = ("(?" ++) . repr . (')':)

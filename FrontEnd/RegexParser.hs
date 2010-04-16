@@ -41,17 +41,16 @@ p_repeat = p_natom <**> option id p_quantifier
 
 -- |Parses quantifier.
 p_quantifier :: Parsec String st (Regex -> Regex)
-p_quantifier = choice [ char_ '*' >> return RStar
+p_quantifier = choice [ char_ '*' >> return star
                       , char_ '+' >> return plus
                       , char_ '?' >> return quest
                       , between (char_ '{') (char_ '}') p_counter
                       ] <*> p_lazy
   where
-    p_lazy = option Greedy (char_ '?' >> return Lazy)
-    plus Lazy r    = RConcat [r, RStar Lazy r]
-    plus Greedy r  = RConcat [r, RStar Greedy r]
-    quest Lazy r   = ROr [REpsilon, r]
-    quest Greedy r = ROr [r, REpsilon]
+    p_lazy    = option Greedy (char_ '?' >> return Lazy)
+    star l    = RCounter l 0 Nothing
+    plus l    = RCounter l 1 Nothing
+    quest l   = RCounter l 0 (Just 1)
     p_counter = do x <- number_ 0 999
                    y <- option (Just x)
                                (char_ ',' >> optionMaybe (number_ x 999))

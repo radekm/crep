@@ -83,21 +83,16 @@ instance Show RE where
   showsPrec p r = showsPrec p (fromRE r)
 
 -- |Converts @RE@ to @Regex@.
---
--- This conversion is lossless and so @toRE . fromRE = id@.
 fromRE :: RE -> R.Regex
 fromRE (RCharSet cs) = R.RCharSet cs
 fromRE REpsilon      = R.REpsilon
 fromRE (ROr rs)      = R.ROr (map fromRE rs)
 fromRE (RAnd rs)     = R.RAnd (map fromRE rs)
 fromRE (RConcat rs)  = R.RConcat (map fromRE rs)
-fromRE (RStar r)     = R.RStar R.Greedy (fromRE r)
+fromRE (RStar r)     = R.RCounter R.Greedy 0 Nothing (fromRE r)
 fromRE (RNot r)      = R.RNot (fromRE r)
 
 -- |Converts @Regex@ to @RE@.
---
--- This conversion is lossy because @RE@ does not have capturing groups,
--- counters and flags for laziness.
 --
 -- Counters are rewritten with @concatenation@, operator @or@ and operator
 -- @star@:
@@ -111,7 +106,6 @@ toRE (R.RCharSet cs) = RCharSet cs
 toRE (R.ROr rs)      = simpOr (map toRE rs)
 toRE (R.RAnd rs)     = simpAnd (map toRE rs)
 toRE (R.RConcat rs)  = simpConcat (map toRE rs)
-toRE (R.RStar _ r)   = simpStar (toRE r)
 toRE (R.RCounter _ minRep maxRep' r)
   = case maxRep' of
       Nothing     -> simpConcat $ mandatory ++ [simpStar newR]
