@@ -25,15 +25,15 @@ p_regex = p_or
 
 -- |Parses union.
 p_or :: RegexParserSt st => Parsec String st Regex
-p_or = ROr <$> sepBy1 p_and (char_ '|')
+p_or = wrap (error "p_or") ROr <$> sepBy1 p_and (char_ '|')
 
 -- |Parses intersection.
 p_and :: RegexParserSt st => Parsec String st Regex
-p_and = RAnd <$> sepBy1 p_concat (char_ '&')
+p_and = wrap (error "p_and") RAnd <$> sepBy1 p_concat (char_ '&')
 
 -- |Parses concatenation.
 p_concat :: RegexParserSt st => Parsec String st Regex
-p_concat = RConcat <$> many p_repeat
+p_concat = wrap REpsilon RConcat <$> many p_repeat
 
 -- |Parses negated atom with quantifier.
 p_repeat :: RegexParserSt st => Parsec String st Regex

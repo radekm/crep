@@ -86,9 +86,9 @@ instance Show RE where
 fromRE :: RE -> R.Regex
 fromRE (RCharSet cs) = R.RCharSet cs
 fromRE REpsilon      = R.REpsilon
-fromRE (ROr rs)      = R.ROr (map fromRE rs)
-fromRE (RAnd rs)     = R.RAnd (map fromRE rs)
-fromRE (RConcat rs)  = R.RConcat (map fromRE rs)
+fromRE (ROr rs)      = R.wrap (error "fromRE: or") R.ROr (map fromRE rs)
+fromRE (RAnd rs)     = R.wrap (error "fromRE: and") R.RAnd (map fromRE rs)
+fromRE (RConcat rs)  = R.wrap R.REpsilon R.RConcat (map fromRE rs)
 fromRE (RStar r)     = R.RCounter R.Greedy 0 Nothing (fromRE r)
 fromRE (RNot r)      = R.RNot (fromRE r)
 
@@ -103,9 +103,9 @@ fromRE (RNot r)      = R.RNot (fromRE r)
 toRE :: R.Regex -> RE
 toRE R.REpsilon      = REpsilon
 toRE (R.RCharSet cs) = RCharSet cs
-toRE (R.ROr rs)      = simpOr (map toRE rs)
-toRE (R.RAnd rs)     = simpAnd (map toRE rs)
-toRE (R.RConcat rs)  = simpConcat (map toRE rs)
+toRE (R.ROr a b)     = simpOr [toRE a, toRE b]
+toRE (R.RAnd a b)    = simpAnd [toRE a, toRE b]
+toRE (R.RConcat a b) = simpConcat [toRE a, toRE b]
 toRE (R.RCounter _ minRep maxRep' r)
   = case maxRep' of
       Nothing     -> simpConcat $ mandatory ++ [simpStar newR]
