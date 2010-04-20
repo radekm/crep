@@ -8,6 +8,9 @@
 --
 module Core.Regex where
 
+import Control.Applicative ((<$>))
+import Control.Arrow (first)
+import Control.Monad (guard)
 import Core.SymbSet
 
 -- |Represents extended regular expression.
@@ -29,6 +32,59 @@ wrap emptyRegex _    []      = emptyRegex
 wrap _          _    [x]     = x
 wrap _          cons [x, x'] = cons x x'
 wrap emptyRegex cons (x:xs)  = cons x (wrap emptyRegex cons xs)
+
+type Captured = [(Int, String)]
+
+-- |Returns matching string for each group.
+capture :: Regex -> String -> Captured
+capture re = (\(cs, _, _) -> cs) . head .
+             filter (\(_, _, rest) -> null rest) . cap re
+  where
+    -- Returns: (captured content, processed prefix of xs, rest suffix of xs).
+    cap :: Regex -> String -> [(Captured, String, String)]
+    cap REpsilon xs = [([], "", xs)]
+    cap (RCharSet cs) (x:xs)
+      | member x cs = [([], [x], xs)]
+    cap (RCharSet _) _ = []
+    cap (ROr a b) xs = cap a xs ++ cap b xs
+    cap (RAnd a b) xs
+      = concatMap
+          (\(cs, pref, suf) ->
+            case filter (\(_, _, rest) -> null rest) (cap b pref) of
+              ((cs', _, _):_) -> [(cs ++ cs', pref, suf)]
+              _               -> []) $
+          cap a xs
+    cap (RConcat a b) xs = do (cs, pref, suf) <- cap a xs
+                              (cs', pref', suf') <- cap b suf
+                              return (cs ++ cs', pref ++ pref', suf')
+    cap (RCounter lazy l h r) xs = rep [] "" xs l h
+      where
+        rep cs pref suf lo hi
+          | lo == 0 && (hi == Nothing || hi >= Just 1)
+          = if lazy == Greedy then more lo ++ [now]
+                              else now:more lo
+          | lo == 0  = [now]
+          | otherwise = more (pred lo)
+          where
+            more newLo = do (cs', pref', suf') <- cap r suf
+                            -- Empty matches are not allowed.
+                            guard (not $ null pref')
+                            rep (cs ++ cs') (pref ++ pref')
+                                suf' newLo (pred <$> hi)
+            now  = (cs, pref, suf)
+    cap (RNot r) xs
+      = map (\(pref, suf) -> ([], pref, suf)) $
+        filter (\(pref, _) ->
+                 null $  -- Cannot be matched by r.
+                 filter (\(_, _, rest) -> null rest) $
+                 cap r pref) $
+        reverse $ partitions xs
+      where
+        partitions []     = [([], [])]
+        partitions (a:as) = ([], a:as) : map (first (a:)) (partitions as)
+    cap (RGroup i r) xs = map (\(cs, pref, suf) ->
+                                ((i, pref):cs, pref, suf)) $
+                          cap r xs
 
 data Descriptor
   = Epsilon | Atom | ONot | OCounter | OConcat | OAnd | OOr
