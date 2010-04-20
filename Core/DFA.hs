@@ -19,6 +19,7 @@ import Data.Array.MArray
 import Data.Array.ST
 import Data.Maybe (isNothing)
 import Data.List (groupBy, sortBy, unfoldr)
+import Data.Monoid (mconcat)
 import Core.SymbSet
 import Core.Rule
 import Core.RE
@@ -469,4 +470,85 @@ toDFA rsPrio brzoDFA
                   in (bsdStNum st, SD matches (getMatchPrio matches) Nothing
                                       (bsdTrans st)))
           (bStData brzoDFA)
+
+------------------------------------------------------------------------------
+-- State partitioning for alphabet compression
+--
+-- We use algorithm described in article
+-- "Efficient Signature Matching with Multiple Alphabet Compression Tables"
+-- by Shijin Kong, Randy Smith and Cristian Estan
+
+-- |Partitions states of @dfa@ into @m@ partitions or less.
+-- Transitions in automaton must be normalized.
+partitionStates :: DFA Char -> Int -> [[StNum]]
+partitionStates (DFA dfa') = createPartitions allStates
+                                              (succ $ state2Int lastSt)
+  where
+    bnds@(_, lastSt) = bounds dfa'
+    allStates        = uncurry enumFromTo bnds
+
+    -- Group symbols with same beahviour in given states.
+    groupSymbols = fromPartition . mconcat .
+                   concatMap (map (toPartition . fst) . sdTrans . (dfa' !))
+
+    -- Creates @m@ partitions.
+    createPartitions sts stsLen m
+      | m == 1 = if null sts then [] else [sts]
+      | m > 1
+      = case partitionSts sts stsLen of
+          (fin@(_:_), again, againLen) -> fin:createPartitions again againLen
+                                                               (pred m)
+          ([], [], _)                  -> []
+          ([], again, _)               -> [again]
+      | otherwise = error "partitionStates: invalid number of partitions"
+
+    -- Partitions states into @fin@ which has small number of groups of symbols
+    -- and @removed@ which containts strictly more than half of the states.
+    -- Returns @(fin, removed, removedLen)@.
+    partitionSts origSts origLen
+      = until (\(fin, _, removedLen) -> removedLen > half || null fin)
+              (\(fin, removed, removedLen) ->
+                let (remaining, removed', removedLen') = removeSts fin
+                in (remaining, removed ++ removed', removedLen + removedLen'))
+              (origSts, [], 0)
+      where
+        half = origLen `div` 2
+
+    -- Removes the smallest subset of states such that remaining states have
+    -- less groups of symbols. Returns @(remaining, removed, removedLen)@.
+    removeSts origSts
+      = case findSmallestSetToRemove $ combinations2 groupedSymbs of
+          Just result -> result
+          _           -> ([], origSts, length origSts)
+      where
+        groupedSymbs = groupSymbols origSts
+
+        -- For each pair of symbol groups we find which states must be removed
+        -- to merge the groups. We remember smallest set of states.
+        --
+        -- Nothing is returned when symbolPairs is empty
+        -- (no states implies it).
+        findSmallestSetToRemove 
+          = foldl (\st (a, b) ->
+                    let new@(_, _, newRemovedLen) = partit a b
+                    in case st of
+                         old@(Just (_, _, oldRemovedLen))
+                           | oldRemovedLen <= newRemovedLen -> old
+                         _ -> Just new)
+                  Nothing
+          where
+            partit a b = partit' origSts [] [] 0
+              where
+                ab = union a b
+                partit' (st:restSts) goodSts badSts badLen
+                  -- TODO: we can stop when symbol set equal to ab is found.
+                  | any (`notElem` [empty, ab]) $ map (intersect ab) $
+                    map fst $ sdTrans $ dfa' ! st
+                  = partit' restSts goodSts (st:badSts) (succ badLen)
+                  | otherwise
+                  = partit' restSts (st:goodSts) badSts badLen
+                partit' _ goodSts badSts badLen = (goodSts, badSts, badLen)
+
+    combinations2 (a:xs) = [(a, b) | b <- xs] ++ combinations2 xs
+    combinations2 []     = []
 
