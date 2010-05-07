@@ -14,7 +14,7 @@ import Core.Regex
 
 -- |Rule consists of the priority, flag for preferred length of selected
 -- words, regular expression and substitution.
-data Rule = Rule !Priority !PrefLength Regex Subst
+data Rule = Rule !Priority !PrefLength (Regex Yes) Subst
           deriving Show
 
 -- |Priority of the rule.

@@ -32,6 +32,7 @@ module FrontEnd.Parsec
   , unexpected
   , getState
   , putState
+  , modifyState
   , runParser
   , (<$>)
   , (<|>)

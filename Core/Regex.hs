@@ -1,128 +1,93 @@
+{-# LANGUAGE
+      GADTs, EmptyDataDecls #-}
+
 -- |
 -- Module    : Core.Regex
--- Copyright : (c) Radek Micek 2009
+-- Copyright : (c) Radek Micek 2009-2010
 -- License   : BSD3
 -- Stability : experimental
 --
 -- Extended regular expressions.
 --
-module Core.Regex where
+module Core.Regex
+    (
+      Regex(..)
+    , Yes
+    , No
+    , wrap
+    ) where
 
-import Control.Applicative ((<$>))
-import Control.Arrow (first)
-import Control.Monad (guard)
 import Core.SymbSet
 
--- |Represents extended regular expression.
-data Regex = REpsilon
-           | RCharSet CharSet
-           | ROr Regex Regex
-           | RAnd Regex Regex
-           | RConcat Regex Regex
-           | RCounter !Laziness !Int !(Maybe Int) Regex
-           | RNot Regex
-           | RGroup !Int Regex
+-- |(@'Regex' a@) is type of extended regular expressions. Expressions
+-- of type (@Regex Yes@) may contain subexpression @RCapture i r@, but
+-- expressions of type (@Regex No@) must not. This restriction is due
+-- to complement. It is not possible to capture what has matched
+-- by subexpression of the complement because it has not matched.
+data Regex group where
+    -- |Empty word.
+    Epsilon :: Regex a
+    -- |Any character from given set.
+    CharSet :: CharSet -> Regex a
+    Or      :: Regex a -> Regex a -> Regex a
+    And     :: Regex a -> Regex a -> Regex a
+    Concat  :: Regex a -> Regex a -> Regex a
+    -- |Repetition. (@RCounter min max r@) means, that expression @r@
+    -- has to match at least @min@ and at most (@fromJust max@) times.
+    -- (@max == Nothing@) means that there is no upper bound.
+    Counter :: !Int -> !(Maybe Int) -> Regex a -> Regex a
+    Not     :: Regex No -> Regex a
+    -- |(@RCapture i r@) saves word matched by expression @r@ as @i@.
+    Capture :: !Int -> Regex a -> Regex Yes
 
-data Laziness = Greedy | Lazy
-              deriving Eq
+data Yes
+data No
 
--- |Converts list of regular expressions to one regular expression.
-wrap :: Regex -> (Regex -> Regex -> Regex) -> [Regex] -> Regex
-wrap emptyRegex _    []      = emptyRegex
-wrap _          _    [x]     = x
-wrap _          cons [x, x'] = cons x x'
-wrap emptyRegex cons (x:xs)  = cons x (wrap emptyRegex cons xs)
+-- |Function (@wrap emptyRegex binOp rs@) converts list of regular expressions
+-- @rs@ into one regular expression.
+--
+-- * Operation @binOp@ is left-associative.
+--
+-- * Returns @emptyRegex@ when the list is empty.
+wrap :: Regex a -> (Regex a -> Regex a -> Regex a) -> [Regex a] -> Regex a
+wrap emptyRegex _     [] = emptyRegex
+wrap _          binOp xs = foldl1 binOp xs
 
-type Captured = [(Int, String)]
-
--- |Returns matching string for each group.
-capture :: Regex -> String -> Captured
-capture re = (\(cs, _, _) -> cs) . head .
-             filter (\(_, _, rest) -> null rest) . cap re
-  where
-    -- Returns: (captured content, processed prefix of xs, rest suffix of xs).
-    cap :: Regex -> String -> [(Captured, String, String)]
-    cap REpsilon xs = [([], "", xs)]
-    cap (RCharSet cs) (x:xs)
-      | member x cs = [([], [x], xs)]
-    cap (RCharSet _) _ = []
-    cap (ROr a b) xs = cap a xs ++ cap b xs
-    cap (RAnd a b) xs
-      = concatMap
-          (\(cs, pref, suf) ->
-            case filter (\(_, _, rest) -> null rest) (cap b pref) of
-              ((cs', _, _):_) -> [(cs ++ cs', pref, suf)]
-              _               -> []) $
-          cap a xs
-    cap (RConcat a b) xs = do (cs, pref, suf) <- cap a xs
-                              (cs', pref', suf') <- cap b suf
-                              return (cs ++ cs', pref ++ pref', suf')
-    cap (RCounter lazy l h r) xs = rep [] "" xs l h
-      where
-        rep cs pref suf lo hi
-          | lo == 0 && (hi == Nothing || hi >= Just 1)
-          = if lazy == Greedy then more lo ++ [now]
-                              else now:more lo
-          | lo == 0  = [now]
-          | otherwise = more (pred lo)
-          where
-            more newLo = do (cs', pref', suf') <- cap r suf
-                            -- Empty matches are not allowed.
-                            guard (not $ null pref')
-                            rep (cs ++ cs') (pref ++ pref')
-                                suf' newLo (pred <$> hi)
-            now  = (cs, pref, suf)
-    cap (RNot r) xs
-      = map (\(pref, suf) -> ([], pref, suf)) $
-        filter (\(pref, _) ->
-                 null $  -- Cannot be matched by r.
-                 filter (\(_, _, rest) -> null rest) $
-                 cap r pref) $
-        reverse $ partitions xs
-      where
-        partitions []     = [([], [])]
-        partitions (a:as) = ([], a:as) : map (first (a:)) (partitions as)
-    cap (RGroup i r) xs = map (\(cs, pref, suf) ->
-                                ((i, pref):cs, pref, suf)) $
-                          cap r xs
-
-data Descriptor
-  = Epsilon | Atom | ONot | OCounter | OConcat | OAnd | OOr
+-- |Type is used only when converting regular expression to string.
+data RegexType
+  = TEpsilon | TAtom | TNot | TCounter | TConcat | TAnd | TOr
   deriving (Eq, Ord)
 
-instance Show Regex where
-  showsPrec _ = fst . shows'
-    where
-      -- Returns a pair @(repr, d)@ where @repr@ is a representation
-      -- of given regular expression and @d@ describes shape
-      -- of the regular expression.
-      shows' :: Regex -> (String -> String, Descriptor)
-      shows' REpsilon       = (id, Epsilon)
-      shows' (RCharSet set) = (shows set, Atom)
-      shows' (ROr a b)      = (wrap' OOr a . ('|':) . wrap' OOr b, OOr)
-      shows' (RAnd a b)     = (wrap' OAnd a . ('&':) . wrap' OAnd b, OAnd)
-      shows' (RConcat a b)  = (wrap' OConcat a . wrap' OConcat b, OConcat)
-      shows' (RNot r)       = (('^':) . wrap' ONot r, ONot)
-      shows' (RGroup _ r)   = (('(':) . shows r . (')':), Atom)
-      shows' (RCounter lazy minRep maxRep r)
-        = (wrap' OCounter r . (counterStr ++), OCounter)
-        where
-          counterStr = '{':minRepStr ++ maxRepStr ++ '}':lazyStr
-          lazyStr    = if lazy == Lazy then "?" else ""
-          minRepStr  = show minRep
-          maxRepStr  = case maxRep of Nothing -> ","
-                                      Just maxRep'
-                                        | minRep == maxRep' -> ""
-                                        | otherwise -> ',':show maxRep'
-      -- Returns representation of @r@ which can be given as an argument
-      -- to operator @parent@. That means represantation of @r@ is taken
-      -- and wrapped in parentheses if necessary.
-      wrap' parent r
-        | (parent >= OConcat && parent >= child)
-            || (child == ONot && parent == OCounter)
-            || child == Atom
-          = repr
-        | otherwise = ("(?" ++) . repr . (')':)
-        where
-          (repr, child) = shows' r
+instance Show (Regex a) where
+    showsPrec _ = fst . shows'
+      where
+        -- |Returns pair @(repr, t)@ where @repr@ represents given expression
+        -- and @t@ is used to decide about parentheses.
+        shows' :: Regex a -> (String -> String, RegexType)
+        shows' Epsilon       = (id, TEpsilon)
+        shows' (CharSet set) = (shows set, TAtom)
+        shows' (Or a b)      = (wrap' TOr a . ('|':) . wrap' TOr b, TOr)
+        shows' (And a b)     = (wrap' TAnd a . ('&':) . wrap' TAnd b, TAnd)
+        shows' (Concat a b)  = (wrap' TConcat a . wrap' TConcat b, TConcat)
+        shows' (Not r)       = (('^':) . wrap' TNot r, TNot)
+        shows' (Capture _ r) = (('(':) . shows r . (')':), TAtom)
+        shows' (Counter minRep maxRep r)
+          = (wrap' TCounter r . (counterStr ++), TCounter)
+          where
+            counterStr = '{':minRepStr ++ maxRepStr ++ "}"
+            minRepStr  = show minRep
+            maxRepStr  = case maxRep of Nothing -> ","
+                                        Just maxRep'
+                                          | minRep == maxRep' -> ""
+                                          | otherwise -> ',':show maxRep'
+        -- |If necessary adds parentheses around @r@ so it can be placed
+        -- inside @parent@.
+        wrap' parent r
+          | (parent >= TConcat && parent >= child)
+              || (child == TNot && parent == TCounter)
+              || child == TAtom
+            = repr
+          | otherwise = ("(?" ++) . repr . (')':)
+          where
+            (repr, child) = shows' r
 
