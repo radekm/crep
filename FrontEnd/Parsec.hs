@@ -1,48 +1,49 @@
 -- |
 -- Module    : FrontEnd.Parsec
--- Copyright : (c) Radek Micek 2009
+-- Copyright : (c) Radek Micek 2009-2010
 -- License   : BSD3
 -- Stability : experimental
 --
 -- Functions for parsing.
 --
 module FrontEnd.Parsec
-  ( Parsec
-  , ParseError
-  , char
-  , char_
-  , noneOf
-  , noneOf_
-  , number
-  , number_
-  , escapeSeq
-  , escapeSeq_
-  , letter
-  , digit
-  , skipSpacesAndComments
-  , sepBy
-  , sepBy1
-  , many
-  , many1
-  , eof
-  , between
-  , choice
-  , option
-  , optionMaybe
-  , try
-  , unexpected
-  , getState
-  , putState
-  , modifyState
-  , runParser
-  , (<$>)
-  , (<|>)
-  , (<*>)
-  , (<*)
-  , (*>)
-  , (<**>)
-  , (<?>)
-  ) where
+    ( 
+      Parsec
+    , ParseError
+    , char
+    , char_
+    , noneOf
+    , noneOf_
+    , number
+    , number_
+    , escapeSeq
+    , escapeSeq_
+    , letter
+    , digit
+    , skipSpacesAndComments
+    , sepBy
+    , sepBy1
+    , many
+    , many1
+    , eof
+    , between
+    , choice
+    , option
+    , optionMaybe
+    , try
+    , unexpected
+    , getState
+    , putState
+    , modifyState
+    , runParser
+    , (<$>)
+    , (<|>)
+    , (<*>)
+    , (<*)
+    , (*>)
+    , (<**>)
+    , (<?>)
+    ) where
 
 import Numeric (readDec, readHex, showHex)
 import Data.Char (ord)

@@ -3,7 +3,7 @@
 
 -- |
 -- Module    : FrontEnd.RegexParser
--- Copyright : (c) Radek Micek 2009
+-- Copyright : (c) Radek Micek 2009-2010
 -- License   : BSD3
 -- Stability : experimental
 --
