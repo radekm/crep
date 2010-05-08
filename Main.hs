@@ -22,7 +22,7 @@ main = do rulesFile <- head <$> getArgs
               putStrLn "Parsing OK"
               -- Convert list of rules into list of pairs
               -- @(RE Yes, 1)@. For now we ignore priority of the rules.
-              let reList = map (\(Rule _ _ regex _) ->
+              let reList = map (\(Rule _ _ _ regex _) ->
                                   (toRE regex, Pr 1))
                                rules
               -- Build Brzozowski's automaton and print number of its states.

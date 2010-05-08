@@ -17,6 +17,7 @@ module FrontEnd.Parsec
   , number_
   , escapeSeq
   , escapeSeq_
+  , letter
   , digit
   , skipSpacesAndComments
   , sepBy
