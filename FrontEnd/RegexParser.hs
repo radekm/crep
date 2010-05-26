@@ -1,5 +1,4 @@
-{-# LANGUAGE
-      GADTs #-}
+{-# LANGUAGE GADTs #-}
 
 -- |
 -- Module    : FrontEnd.RegexParser
@@ -10,12 +9,12 @@
 -- Parser for regular expressions.
 --
 module FrontEnd.RegexParser
-    (
-      RegexParserSt(..)
-    , p_regex
-    , maxRepetitions
-    , maxCaptureNum
-    ) where
+       (
+         RegexParserSt(..)
+       , p_regex
+       , maxRepetitions
+       , maxCaptureNum
+       ) where
 
 import Control.Monad (forM_, liftM, when)
 import Control.Arrow (first, second)
@@ -26,8 +25,8 @@ import Core.SymbSet
 import Core.Utils
 
 class RegexParserSt a where
-    newGroupNum :: a -> (Int, a)
-    cannotCapture :: Int -> a -> a
+  newGroupNum :: a -> (Int, a)
+  cannotCapture :: Int -> a -> a
 
 -- |Parses regular expression.
 p_regex :: RegexParserSt st => Parsec String st (Regex Yes)
@@ -161,4 +160,3 @@ maxRepetitions = 999
 -- Must be at least 2 digits and must have successor.
 maxCaptureNum :: Int
 maxCaptureNum = 999
-

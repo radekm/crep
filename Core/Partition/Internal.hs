@@ -27,20 +27,21 @@
 -- @mappend as bs = as@. This is because @bs == mempty@.
 --
 module Core.Partition.Internal
-  ( Pa(..)
-  , reverseC
-  , oneC
-  , keyC
-  , valueC
-  , toValueC
-  , fromValueC
-  , reverseB
-  , oneB
-  , keyB
-  , valueB
-  , toValueB
-  , fromValueB
-  ) where
+       ( 
+         Pa(..)
+       , reverseC
+       , oneC
+       , keyC
+       , valueC
+       , toValueC
+       , fromValueC
+       , reverseB
+       , oneB
+       , keyB
+       , valueB
+       , toValueB
+       , fromValueB
+       ) where
 
 import Data.Monoid
 import Data.Word (Word64, Word8, Word)

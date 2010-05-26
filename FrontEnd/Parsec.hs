@@ -7,43 +7,43 @@
 -- Functions for parsing.
 --
 module FrontEnd.Parsec
-    ( 
-      Parsec
-    , ParseError
-    , char
-    , char_
-    , noneOf
-    , noneOf_
-    , number
-    , number_
-    , escapeSeq
-    , escapeSeq_
-    , letter
-    , digit
-    , skipSpacesAndComments
-    , sepBy
-    , sepBy1
-    , many
-    , many1
-    , eof
-    , between
-    , choice
-    , option
-    , optionMaybe
-    , try
-    , unexpected
-    , getState
-    , putState
-    , modifyState
-    , runParser
-    , (<$>)
-    , (<|>)
-    , (<*>)
-    , (<*)
-    , (*>)
-    , (<**>)
-    , (<?>)
-    ) where
+       ( 
+         Parsec
+       , ParseError
+       , char
+       , char_
+       , noneOf
+       , noneOf_
+       , number
+       , number_
+       , escapeSeq
+       , escapeSeq_
+       , letter
+       , digit
+       , skipSpacesAndComments
+       , sepBy
+       , sepBy1
+       , many
+       , many1
+       , eof
+       , between
+       , choice
+       , option
+       , optionMaybe
+       , try
+       , unexpected
+       , getState
+       , putState
+       , modifyState
+       , runParser
+       , (<$>)
+       , (<|>)
+       , (<*>)
+       , (<*)
+       , (*>)
+       , (<**>)
+       , (<?>)
+       ) where
 
 import Numeric (readDec, readHex, showHex)
 import Data.Char (ord)
@@ -131,4 +131,3 @@ char_ c = char c <* skipSpacesAndComments
 -- the read character.
 noneOf_ :: String -> Parsec String st Char
 noneOf_ cs = noneOf cs <* skipSpacesAndComments
-

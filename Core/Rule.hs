@@ -41,4 +41,3 @@ data SubstTerm = TConst String
 -- |Number of the rule.
 newtype RuNum = RuN Int
               deriving (Eq, Ord, Show, Enum)
-

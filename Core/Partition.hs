@@ -8,8 +8,8 @@
 -- Partitions form commutative monoid with intersection.
 --
 module Core.Partition
-  ( Pa
+  ( 
+    Pa
   ) where
 
 import Core.Partition.Internal
-

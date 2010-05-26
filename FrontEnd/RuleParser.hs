@@ -7,10 +7,10 @@
 -- Parser for rules.
 --
 module FrontEnd.RuleParser
-    (
-      parseRules
-    , parseRegex
-    ) where
+       (
+         parseRules
+       , parseRegex
+       ) where
 
 import Control.Monad (liftM2, when)
 import Numeric (readDec)
@@ -23,8 +23,8 @@ import Core.Rule
 data RuleParserState = S Int [Int] [String]
 
 instance RegexParserSt RuleParserState where
-    newGroupNum (S i remCs names)     = (i+1, S (i+1) remCs names)
-    cannotCapture c (S i remCs names) = S i (c:remCs) names
+  newGroupNum (S i remCs names)     = (i+1, S (i+1) remCs names)
+  cannotCapture c (S i remCs names) = S i (c:remCs) names
 
 newState :: RuleParserState
 newState = S 0 [] []
@@ -98,4 +98,3 @@ p_subst = Subst <$> many (p_tconst <|> p_tgroup)
 
 maxPriority :: Int
 maxPriority = 999
-

@@ -10,26 +10,27 @@
 -- Set of symbols and range of symbols.
 --
 module Core.SymbSet
-  ( Symbol
-  , SymbSet
-  , CharSet
-  , ByteSet
-  , Range
-  , mkRange
-  , loR
-  , hiR
-  , empty
-  , alphabet
-  , fromRanges
-  , toRanges
-  , toPartition
-  , fromPartition
-  , member
-  , firstSymb
-  , complement
-  , union
-  , intersect
-  ) where
+       ( 
+         Symbol
+       , SymbSet
+       , CharSet
+       , ByteSet
+       , Range
+       , mkRange
+       , loR
+       , hiR
+       , empty
+       , alphabet
+       , fromRanges
+       , toRanges
+       , toPartition
+       , fromPartition
+       , member
+       , firstSymb
+       , complement
+       , union
+       , intersect
+       ) where
 
 import Data.List (intersperse, sortBy, groupBy)
 import Data.Bits ((.|.), (.&.))
@@ -393,4 +394,3 @@ instance Show (SymbSet Word8) where
         where
           valC = fromIntegral $ valueB p
       toCharSet NilB = NilC
-
