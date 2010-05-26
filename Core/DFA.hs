@@ -160,7 +160,7 @@ computeReachablePrio dfa
 -- |Removes all transitions which lead only to the states with strictly lower
 -- priority. More preciously: new state "cesspit" is addded and all such
 -- transitions are redirected to cesspit. Automaton cannot leave cesspit.
-removeTransitionsToLowerPrio :: Symbol a => DFA a -> DFA a
+removeTransitionsToLowerPrio :: Bounded a => DFA a -> DFA a
 removeTransitionsToLowerPrio (DFA dfa')
   = DFA $ array (a, cesspit)
         $ (cesspit, cpData):[(i, newStateData i) | i <- [a..b]]
@@ -198,7 +198,7 @@ sortAndGroupBySnd = groupBy (co2 (==) snd) . sortBy (co2 compare snd)
     co2 f t a b = f (t a) (t b)
 
 -- |Normalized list contains each state at most once.
-normalizeTrans :: (Symbol a, Ord dest) => [(SymbSet a, dest)]
+normalizeTrans :: (Ord a, Bounded a, Ord dest) => [(SymbSet a, dest)]
                -> [(SymbSet a, dest)]
 normalizeTrans = map (\xs@((_, st):_) -> (foldl union empty $ map fst xs, st))
                . sortAndGroupBySnd
@@ -232,7 +232,7 @@ arrState2ClassId b = (id2Int *** array b) . foldl f (ECI 1, [])
 --
 -- Note: k-equivalence means that states cannot be differentiated by words
 -- with length <= k.
-kEquivalences :: (Symbol a, Ord (SymbSet a)) => DFA a -> [Equivalence]
+kEquivalences :: (Ord a, Bounded a, Ord (SymbSet a)) => DFA a -> [Equivalence]
 kEquivalences (DFA dfa') = initialEquivalence:unfoldr refineEquivalence
                                                       initialEquivalence
   where
@@ -261,7 +261,7 @@ kEquivalences (DFA dfa') = initialEquivalence:unfoldr refineEquivalence
         st2Id = (!) (snd $ arrState2ClassId (bounds dfa') e)
 
 -- |Given the equivalence it returns quotient automaton. Initial state 
-mergeEquivalentStates :: Symbol a => DFA a -> Equivalence -> DFA a
+mergeEquivalentStates :: (Ord a, Bounded a) => DFA a -> Equivalence -> DFA a
 mergeEquivalentStates (DFA dfa') equiv
   = DFA $ array (StN 0, StN $ numClasses - 1) (map eachEqClass equiv)
   where
@@ -282,7 +282,7 @@ minimize dfa = mergeEquivalentStates dfa $ last $ kEquivalences dfa
 
 -- |Moore's k-minimization. States which cannot be differentiated by words
 -- with length <= k are merged.
-kMinimize :: (Symbol a, Ord (SymbSet a)) => Int -> DFA a -> DFA a
+kMinimize :: (Ord a, Bounded a, Ord (SymbSet a)) => Int -> DFA a -> DFA a
 kMinimize k dfa = mergeEquivalentStates dfa
                     $ last $ take k $ kEquivalences dfa
 

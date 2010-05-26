@@ -19,6 +19,7 @@ module Core.RE
        , partitionAlphabetByDerivativesMany
        ) where
 
+import Data.Word (Word)
 import Data.List (sort)
 import Core.Regex
 import Core.SymbSet
@@ -198,7 +199,7 @@ derivative c (RNot r)       = simpNot (derivative c r)
 -- of the alphabet where each block of the partition contains characters
 -- which give same derivatives for @r@ i.e. if @c1@ and @c2@ are in the same
 -- block then @'derivative' c1 r == 'derivative' c2 r@.
-partitionAlphabetByDerivatives :: RE -> Pa Char
+partitionAlphabetByDerivatives :: RE -> Pa Word Char
 partitionAlphabetByDerivatives re
   = case re of
       RCharSet cs    -> toPartition cs
@@ -217,7 +218,7 @@ partitionAlphabetByDerivatives re
 
 -- |Similar to @'partitionAlphabetByDerivatives'@ but accepts list of regular
 -- expressions.
-partitionAlphabetByDerivativesMany :: [RE] -> Pa Char
+partitionAlphabetByDerivativesMany :: [RE] -> Pa Word Char
 partitionAlphabetByDerivativesMany rs
   = mconcat (map partitionAlphabetByDerivatives rs)
 {-# INLINE partitionAlphabetByDerivativesMany #-}
