@@ -30,7 +30,7 @@ sortAndNubWith f = mergeSort . map (:[])
     mergeSort [a] = a
     mergeSort xs  = mergeSort $ mergePairs xs
 
-    mergePairs []       = [] 
+    mergePairs []       = []
     mergePairs [a]      = [a]
     mergePairs (a:b:xs) = merge a b:mergePairs xs
 
@@ -41,7 +41,7 @@ sortAndNubWith f = mergeSort . map (:[])
           EQ -> a:merge as  bs  -- Duplicate is removed here.
     merge as@(_:_) [] = as
     merge []       bs = bs
-  
+
 -- | List of white characters.
 whiteChars :: String
 whiteChars = " \t\n\r\f\v"

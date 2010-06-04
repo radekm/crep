@@ -7,7 +7,7 @@
 -- License   : BSD3
 -- Stability : experimental
 --
--- This module implements: 
+-- This module implements:
 --
 -- * partition of the alphabet with numbered blocks
 --   (i.e. unique identifier is associated with each block of the partition),
@@ -23,7 +23,7 @@
 module Core.Partition
        (
          -- * Partition
-         
+
          -- | Every partition is instance of @Pa@ and @Monoid@.
          Pa(..)
        , BlockId
@@ -32,8 +32,8 @@ module Core.Partition
 
          -- | Symbol set is implemented in terms of partition.
          --   Symbol is in the set iff it is in the block with nonzero id.
-       , Range(..)       
-       , fromRanges       
+       , Range(..)
+       , fromRanges
        , empty
        , alphabet
        , member
@@ -66,7 +66,7 @@ class (Ord s, Bounded s) => Pa p s where
   --
   --   Input list must meet following conditions:
   --
-  -- * List is nonempty and last item in the list contains symbol @maxBound@.  
+  -- * List is nonempty and last item in the list contains symbol @maxBound@.
   --
   -- * Each item contains symbol strictly greater than preceding item.
   --
@@ -153,15 +153,15 @@ instance (Ord s, Bounded s) => Pa PartitionL s where
     where
       fromL ((b, s):xs) = Cons b s $ fromL xs
       fromL []          = Nil
-  
+
   toList (Cons b s xs) = (b, s):toList xs
   toList Nil           = []
-  
+
   getBlock symbol (Cons b s xs)
     | symbol <= s = b
     | otherwise   = getBlock symbol xs
   getBlock _ Nil = error "bad"
-  
+
   mergeWith op xss'@(Cons block _ _) yss'@(Cons block' _ _)
     = merge (block `op` block') undefined {- prevSymb can be any value -}
             xss' yss'
@@ -195,7 +195,7 @@ instance (Ord s, Bounded s) => Pa PartitionL s where
 
 instance (Ord s, Bounded s) => Monoid (PartitionL s) where
   mempty = empty
-  
+
   mappend = isect ([], 0)
     where
       isect dict xss@(Cons b s xs) yss@(Cons b' s' ys)
@@ -207,10 +207,10 @@ instance (Ord s, Bounded s) => Monoid (PartitionL s) where
           (newBlock, newDict) = translate (b, b') dict
       isect _ Nil Nil = Nil
       isect _ _ _     = error "bad partition"
-      
+
       translate k dict@(ddata, size)
         = case lookup k ddata of
             Just newBlock -> (newBlock, dict)
             _             -> (size, ((k, size):ddata, succ size))
-            
+
   mconcat = foldl mappend mempty
