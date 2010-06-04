@@ -19,6 +19,7 @@ executable crep
   main-is: Main.hs
   other-modules:
     Core.Partition
+    Core.Regex
     Core.Utils
 
   build-depends: base >= 4.2 && < 5, parsec >= 3.0.1 && < 3.1,
