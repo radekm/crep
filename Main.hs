@@ -1,6 +1,12 @@
 
 module Main where
 
+import Core.Partition ()
+
+main :: IO ()
+main = return ()
+
+{-
 import System.Environment (getArgs)
 import FrontEnd.RuleParser (parseRules)
 import Core.Rule (Rule(..), Priority(..))
@@ -36,3 +42,4 @@ main = do rulesFile <- head <$> getArgs
               putStrLn $ "Automaton has " ++ show numOfStates ++ " states"
 --              putStrLn $ showDFA dfa
 
+-}
