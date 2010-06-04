@@ -2,7 +2,7 @@
 module Main where
 
 import Core.Partition ()
-import Core.Regex ()
+import Core.Rule ()
 
 main :: IO ()
 main = return ()

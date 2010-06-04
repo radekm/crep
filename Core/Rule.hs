@@ -2,7 +2,7 @@
 
 -- |
 -- Module    : Core.Rule
--- Copyright : (c) Radek Micek 2009
+-- Copyright : (c) Radek Micek 2009, 2010
 -- License   : BSD3
 -- Stability : experimental
 --
@@ -12,32 +12,31 @@ module Core.Rule where
 
 import Core.Regex
 
--- |Rule consists of the priority, flag for preferred length of selected
--- words, regular expression and substitution.
-data Rule = Rule Name !Priority !PrefLength (Regex Yes) Subst
-          deriving Show
+-- | Rule consists of name, priority, flag for preferred length of selected
+--   parts, regular expression and substitution.
+data Rule p a = Rule Name !Priority !PrefLen (Regex p a Yes) Subst
 
--- |Name of the rule.
+-- | Name of the rule.
 type Name = String
 
--- |Priority of the rule.
+-- | Priority of the rule.
 newtype Priority = Pr Int
                  deriving (Eq, Ord, Show)
 
--- |Flag whether the rule prefers to select shortest or longest words.
-data PrefLength = Shortest | Longest
-                deriving Show
+-- | Flag whether the rule prefers shortest or longest parts.
+data PrefLen = Shortest | Longest
+             deriving Show
 
--- |Substitution consists of terms each terms refers to the text captured
--- by a group from regular expression or it is constant string.
+-- | Substitution consists of terms each term refers to the text captured
+--   by regular expression or it is constant string.
 newtype Subst = Subst [SubstTerm]
               deriving Show
 
--- |Terms of the substitution.
+-- | Terms of the substitution.
 data SubstTerm = TConst String
                | TCapture !Int
                deriving Show
 
--- |Number of the rule.
+-- | Number of the rule.
 newtype RuNum = RuN Int
               deriving (Eq, Ord, Show, Enum)
