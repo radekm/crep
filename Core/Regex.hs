@@ -16,36 +16,34 @@ module Core.Regex
        , No
        ) where
 
--- | Type @'Regex' p s r c@ represents regular expressions where
+-- | Type @'Regex' p s c@ represents regular expressions where
 --
 -- * @s@ is type of symbols,
 --
 -- * @p s@ represents set of symbols,
 --
--- * flag @r@ affects whether constructor 'Repeat' can be used,
---
 -- * flag @c@ affects whether constructor 'Capture' can be used.
-data Regex p s r c where
+data Regex p s c where
   -- @'Epsilon'@ denotes @L = {empty word}@.
-  Epsilon :: Regex p s r c
+  Epsilon :: Regex p s c
   -- @'CharClass' set@ denotes @L = set@.
-  CharClass :: p s -> Regex p s r c
+  CharClass :: p s -> Regex p s c
   -- @'Or' a b@ denotes @L = L(a) \\\/ L(b)@.
-  Or :: Regex p s r c -> Regex p s r c -> Regex p s r c
+  Or :: Regex p s c -> Regex p s c -> Regex p s c
   -- @'And' a b@ denotes @L = L(a) \/\\ L(b)@.
-  And :: Regex p s r c -> Regex p s r c -> Regex p s r c
+  And :: Regex p s c -> Regex p s c -> Regex p s c
   -- @'Concat' a b@ denotes @L = {uv | u in L(a), v in L(b)}@.
-  Concat :: Regex p s r c -> Regex p s r c -> Regex p s r c
+  Concat :: Regex p s c -> Regex p s c -> Regex p s c
   -- @'Star' a@ denotes
   -- @L = {u_1 u_2 ... u_n | u_i in L(a), n is natural number}@.
-  Star :: Regex p s r c -> Regex p s r c
+  Star :: Regex p s c -> Regex p s c
   -- @'Repeat' lo hi a@ denotes
   -- @L = {u_1 ... u_n | u_i in L(a), n is natural number, lo <= n <= hi}@.
-  Repeat :: !Int -> !Int -> Regex p s r c -> Regex p s Yes c
+  Repeat :: !Int -> !Int -> Regex p s c -> Regex p s c
   -- @'Not' a@ denotes @L = all words except those in L(a)@.
-  Not :: Regex p s r No -> Regex p s r c
+  Not :: Regex p s No -> Regex p s c
   -- @'Capture' i a@ denotes @L = L(a)@.
-  Capture :: !Int -> Regex p s r c -> Regex p s r Yes
+  Capture :: !Int -> Regex p s c -> Regex p s Yes
 
 -- | Phantom for 'Regex'.
 data Yes
