@@ -37,6 +37,7 @@ module Core.Partition
        , empty
        , alphabet
        , member
+       , complement
        , union
        , intersect
        ) where
@@ -124,6 +125,10 @@ alphabet = fromList [(1, maxBound)]
 -- | Function @'member' s set@ returns whether symbol @s@ is in @set@.
 member :: Pa p s => s -> p s -> Bool
 member s = (/=0) . getBlock s
+
+-- | Returns complement of the given set.
+complement :: Pa p s => p s -> p s
+complement = pmap (\b -> if b == 0 then 1 else 0)
 
 -- | Union of symbol sets.
 union :: Pa p s => p s -> p s -> p s
