@@ -1,123 +1,100 @@
-{-# LANGUAGE GADTs #-}
+{-# LANGUAGE GADTs,
+             FlexibleContexts #-}
 
 -- |
 -- Module    : Core.RE
--- Copyright : (c) Radek Micek 2009-2010
+-- Copyright : (c) Radek Micek 2009, 2010
 -- License   : BSD3
 -- Stability : experimental
 --
--- Simplified regular expressions.
+-- This module contains type 'RE' which represents regular expressions
+-- in normal form.
 --
 module Core.RE
-       ( 
+       (
          RE
        , toRE
-       , fromRE
        , nullable
        , derivative
        , partitionAlphabetByDerivatives
        , partitionAlphabetByDerivativesMany
        ) where
 
-import Data.Word (Word)
 import Data.List (sort)
 import Core.Regex
-import Core.SymbSet
 import Core.Utils
 import Core.Partition
 import Data.Monoid
 
--- |Type @'RE'@ represents regular expressions. @RE@ is lighter version
--- of @Regex@ which is designed for use in automata constructions. Therefore
--- it does not have counters, capturing groups and flags for laziness.
-data RE = RCharSet CharSet
-        | REpsilon
-        | ROr [RE]
-        | RAnd [RE]
-        | RConcat [RE]
-        | RStar RE
-        | RNot RE
-        deriving (Eq, Ord)
-
-instance Show RE where
-  showsPrec p r = showsPrec p (fromRE r)
-
--- |Converts @RE@ to @Regex@.
-fromRE :: RE -> Regex No
-fromRE REpsilon      = Epsilon
-fromRE (RCharSet cs) = CharSet cs
-fromRE (ROr rs)      = wrap (error "fromRE: or") Or (map fromRE rs)
-fromRE (RAnd rs)     = wrap (error "fromRE: and") And (map fromRE rs)
-fromRE (RConcat rs)  = wrap Epsilon Concat (map fromRE rs)
-fromRE (RStar r)     = Counter 0 Nothing (fromRE r)
-fromRE (RNot r)      = Not (fromRE r)
-
--- |Converts @Regex@ to @RE@.
+-- | Type @'RE' p s@ represents regular expressions in normal form where
 --
--- Counters are rewritten with @concatenation@, operator @or@ and operator
--- @star@:
+-- * @s@ is type of symbols,
 --
--- * @x{n,}@ is rewritten into @x^n x*@.
---
--- * @x{n,m}@ is rewritten into @x^n (? x | )^(m-n)@.
-toRE :: Regex a -> RE
-toRE Epsilon      = REpsilon
-toRE (CharSet cs) = RCharSet cs
-toRE (Or a b)     = simpOr [toRE a, toRE b]
-toRE (And a b)    = simpAnd [toRE a, toRE b]
-toRE (Concat a b) = simpConcat [toRE a, toRE b]
-toRE (Counter minRep maxRep' r)
-  = case maxRep' of
-      Nothing     -> simpConcat $ mandatory ++ [simpStar newR]
-      Just maxRep -> simpConcat $ mandatory ++ (replicate (maxRep-minRep)
-                                                  (simpOr [newR, REpsilon]))
+-- * @p s@ represents set of symbols.
+data RE p s = RCharClass (p s)
+            | REpsilon
+            | ROr [RE p s]
+            | RAnd [RE p s]
+            | RConcat [RE p s]
+            | RStar (RE p s)
+            | RNot (RE p s)
+            deriving (Eq, Ord)
+
+-- | Converts @Regex@ to @RE@.
+toRE :: (Pa p s, Ord (p s)) => Regex p s c -> RE p s
+toRE Epsilon         = REpsilon
+toRE (CharClass set) = RCharClass set
+toRE (Or a b)        = consOr [toRE a, toRE b]
+toRE (And a b)       = consAnd [toRE a, toRE b]
+toRE (Concat a b)    = consConcat [toRE a, toRE b]
+toRE (Star a)        = consStar $ toRE a
+toRE (Repeat lo hi a)
+  = consConcat $ mandatory ++ (replicate (hi-lo)
+                                         (consOr [newA, REpsilon]))
   where
-    mandatory = replicate minRep newR  -- Minimal number of repetitions.
-    newR      = toRE r
-toRE (Not r)       = simpNot (toRE r)
-toRE (Capture _ r) = toRE r
+    mandatory = replicate lo newA  -- Minimal number of repetitions.
+    newA      = toRE a
+toRE (Not a)         = consNot (toRE a)
+toRE (Capture _ a)   = toRE a
 
--- |Applies operator @or@ to the list of simplified regular expressions.
--- Returns simplified regular expression.
-simpOr :: [RE] -> RE
-simpOr = fin . nubSorted . sort . unionCharSets . concatMap item
+-- | Applies 'ROr' to the list of normalized regular expressions.
+--   Returns normalized regular expression.
+consOr :: (Pa p s, Ord (p s)) => [RE p s] -> RE p s
+consOr = fin . nubSorted . sort . unionCharClasses . concatMap item
   where
     item (ROr xs)         = xs  -- Take up nested disjunction.
     item x | x == minLang = []  -- Ignore empty language.
            | otherwise    = [x]
-    unionCharSets = merge . separateCharSets
+    unionCharClasses = merge . separateSymbolSets
       where
-        -- @cs@ is a list of @CharSet@s from disjunction which will be merged
-        -- and @os@ are other regular expressions which were in disjunction.
-        merge ([], os) = os
-        merge (cs, os) = (RCharSet $ foldl union empty cs):os
+        merge ([],   os) = os
+        merge (sets, os) = (RCharClass $ foldl union empty sets):os
     fin []                     = minLang  -- Empty disjunction.
     fin [x]                    = x
     fin xs | maxLang `elem` xs = maxLang  -- Language with all words.
            | otherwise         = ROr xs
 
--- |Applies operator @and@ to the list of simplified regular expressions.
--- Returns simplified regular expression.
-simpAnd :: [RE] -> RE
-simpAnd = fin . nubSorted . sort . intersectCharSets . concatMap item
+-- | Applies 'RAnd' to the list of normalized regular expressions.
+--   Returns normalized regular expression.
+consAnd :: (Pa p s, Ord (p s)) => [RE p s] -> RE p s
+consAnd = fin . nubSorted . sort . intersectCharClasses . concatMap item
   where
     item (RAnd xs)        = xs  -- Take up nested conjunction.
     item x | x == maxLang = []  -- Ignore language with all words.
            | otherwise    = [x]
-    intersectCharSets = merge . separateCharSets
+    intersectCharClasses = merge . separateSymbolSets
       where
-        -- @cs@ is a list of @CharSet@s from conjunction.
-        merge ([], os) = os
-        merge (cs, os) = (RCharSet $ foldl intersect alphabet cs):os
+        merge ([],   os) = os
+        merge (sets, os) = (RCharClass $ foldl intersect alphabet sets):os
     fin []                      = maxLang  -- Empty conjunction.
     fin [x]                     = x
     fin xs | head xs == minLang = minLang  -- Empty language.
            | otherwise          = RAnd xs
 
--- |Concatenates simplified regular expressions in the given list. Returns
--- simplified regular expression.
-simpConcat :: [RE] -> RE
-simpConcat = fin . concatMap item
+-- | Applies 'RConcat' to the list of normalized regular expressions.
+--   Returns normalized regular expression.
+consConcat :: (Eq (p s), Pa p s) => [RE p s] -> RE p s
+consConcat = fin . concatMap item
   where
     item (RConcat xs) = xs  -- Take up nested concatenation.
     item REpsilon     = []  -- Ignore empty string.
@@ -127,82 +104,84 @@ simpConcat = fin . concatMap item
     fin xs | minLang `elem` xs = minLang  -- Empty language.
            | otherwise         = RConcat xs
 
--- |Applies operator @star@ to simplified regular expression. Returns
--- simplified regular expression.
-simpStar :: RE -> RE
-simpStar r = case r of
+-- | Applies 'RStar' to the normalized regular expression.
+--   Returns normalized regular expression.
+consStar :: (Eq (p s), Pa p s) => RE p s -> RE p s
+consStar r = case r of
                REpsilon           -> REpsilon  -- Empty string.
                RStar _            -> r         -- Idempotence.
-               ROr (x@(RCharSet cs):_)
+               ROr (x@(RCharClass set):_)
                  -- Disjunction with whole alphabet.
-                 | cs == alphabet -> RStar x
-               _ | r == minLang   -> REpsilon  -- Empty language.
-                 | otherwise      -> RStar r
+                 | set == alphabet -> RStar x
+               _ | r == minLang    -> REpsilon  -- Empty language.
+                 | otherwise       -> RStar r
 
--- |Applies operator @not@ to simplified regular expression. Returns
--- simplified regular expression.
-simpNot :: RE -> RE
-simpNot r = case r of
+-- | Applies 'RStar' to the normalized regular expression.
+--   Returns normalized regular expression.
+consNot :: (Eq (p s), Pa p s) => RE p s -> RE p s
+consNot r = case r of
               RNot r' -> r'  -- Double not.
               _ | r == minLang -> maxLang  -- Empty language.
                 | r == maxLang -> minLang  -- Language with all words.
                 | otherwise    -> RNot r
 
--- |Function @'separateCharSets' rs@ returns a pair @(cs, os)@ where @cs@
--- contains character sets from @rs@ (i.e. if @RCharSet xs `elem` rs@ then
--- @xs `elem` cs@). @os@ contains regular expression from @rs@ which doesn't
--- pattern match with @RCharSet _@.
-separateCharSets :: [RE] -> ([CharSet], [RE])
-separateCharSets = p [] []
+-- | Function @'separateSymbolSets' rs@ returns pair @(sets, os)@ where
+--
+-- * @sets@ is a list of symbol sets from regular expressions in @rs@
+--   matching @'RCharClass' set@,
+--
+-- * @os@ is a list of regular expressions which don't match @'RCharClass' _@.
+separateSymbolSets :: [RE p s] -> ([p s], [RE p s])
+separateSymbolSets = p [] []
   where
-    p cs os (x:xs) = case x of RCharSet x' -> p (x':cs) os xs
-                               _           -> p cs (x:os) xs
-    p cs os _      = (cs, os)
+    p sets os (r:rs) = case r of RCharClass set -> p (set:sets) os     rs
+                                 _              -> p sets       (r:os) rs
+    p sets os []     = (sets, os)
 
--- |Empty language.
-minLang :: RE
-minLang = RCharSet empty
+-- | Empty language.
+minLang :: Pa p s => RE p s
+minLang = RCharClass empty
 
--- |Language with all words.
-maxLang :: RE
-maxLang = RStar $ RCharSet alphabet
+-- | Language with all words.
+maxLang :: Pa p s => RE p s
+maxLang = RStar $ RCharClass alphabet
 
--- |Returns @True@ when the language of the given regular expression contains
--- empty string.
-nullable :: RE -> Bool
-nullable (RCharSet _) = False
-nullable REpsilon     = True
-nullable (ROr rs)     = or (map nullable rs)
-nullable (RAnd rs)    = and (map nullable rs)
-nullable (RConcat rs) = and (map nullable rs)
-nullable (RStar _)    = True
-nullable (RNot r)     = not (nullable r)
+-- | Returns whether given regular expression matches empty word.
+nullable :: RE p s -> Bool
+nullable (RCharClass _) = False
+nullable REpsilon       = True
+nullable (ROr rs)       = or (map nullable rs)
+nullable (RAnd rs)      = and (map nullable rs)
+nullable (RConcat rs)   = and (map nullable rs)
+nullable (RStar _)      = True
+nullable (RNot r)       = not (nullable r)
 
--- |The function @'derivative' c r@ returns simplified left derivative
--- of simplified regular expression @r@ by character @c@.
-derivative :: Char -> RE -> RE
-derivative c (RCharSet cs)  = if member c cs then REpsilon else RCharSet empty
-derivative _ REpsilon       = RCharSet empty
-derivative c (ROr rs)       = simpOr $ map (derivative c) rs
-derivative c (RAnd rs)      = simpAnd $ map (derivative c) rs
-derivative _ (RConcat [])   = RCharSet empty
+-- | The function @'derivative' c r@ returns left derivative
+--   of regular expression @r@ by character @c@.
+derivative :: (Pa p s, Ord (p s)) => s -> RE p s -> RE p s
+derivative c (RCharClass set)
+  | member c set = REpsilon
+  | otherwise    = RCharClass empty
+derivative _ REpsilon        = RCharClass empty
+derivative c (ROr rs)        = consOr $ map (derivative c) rs
+derivative c (RAnd rs)       = consAnd $ map (derivative c) rs
+derivative _ (RConcat [])    = RCharClass empty
 derivative c (RConcat (r:rs))
-  | nullable r = simpOr [first, derivative c rest]
+  | nullable r = consOr [first, derivative c rest]
   | otherwise  = first
   where
-    first = simpConcat [derivative c r, rest]
-    rest  = simpConcat rs
-derivative c star@(RStar r) = simpConcat [derivative c r, star]
-derivative c (RNot r)       = simpNot (derivative c r)
+    first = consConcat [derivative c r, rest]
+    rest  = consConcat rs
+derivative c star@(RStar r) = consConcat [derivative c r, star]
+derivative c (RNot r)       = consNot (derivative c r)
 
--- |The function (@'partitionAlphabetByDerivatives' r@) returns a partition
--- of the alphabet where each block of the partition contains characters
--- which give same derivatives for @r@ i.e. if @c1@ and @c2@ are in the same
--- block then @'derivative' c1 r == 'derivative' c2 r@.
-partitionAlphabetByDerivatives :: RE -> Pa Word Char
+-- | Function @'partitionAlphabetByDerivatives' r@ returns partition
+--   of the alphabet where derivatives of @r@ by characters from the same
+--   block are same.
+partitionAlphabetByDerivatives :: Monoid (p s) => RE p s -> p s
 partitionAlphabetByDerivatives re
   = case re of
-      RCharSet cs    -> toPartition cs
+      RCharClass set -> set
       REpsilon       -> mempty
       ROr rs         -> pam rs
       RAnd rs        -> pam rs
@@ -216,9 +195,12 @@ partitionAlphabetByDerivatives re
     pa  = partitionAlphabetByDerivatives
     pam = partitionAlphabetByDerivativesMany
 
--- |Similar to @'partitionAlphabetByDerivatives'@ but accepts list of regular
--- expressions.
-partitionAlphabetByDerivativesMany :: [RE] -> Pa Word Char
+-- | Function @'partitionAlphabetByDerivativesMany' rs@ returns partition
+--   of the alphabet where derivatives of @rs@ by characters from the same
+--   block are same.
+--
+--   Note: Derivative of list is list of derivatives.
+partitionAlphabetByDerivativesMany :: Monoid (p s) => [RE p s] -> p s
 partitionAlphabetByDerivativesMany rs
   = mconcat (map partitionAlphabetByDerivatives rs)
 {-# INLINE partitionAlphabetByDerivativesMany #-}

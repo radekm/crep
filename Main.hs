@@ -2,6 +2,7 @@
 module Main where
 
 import Core.Partition ()
+import Core.RE ()
 import Core.Rule ()
 
 main :: IO ()
