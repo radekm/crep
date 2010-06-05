@@ -1,5 +1,4 @@
-{-# LANGUAGE GADTs,
-             FlexibleContexts #-}
+{-# LANGUAGE GADTs #-}
 
 -- |
 -- Module    : Core.RE
