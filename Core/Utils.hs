@@ -70,3 +70,9 @@ escapeSpecial c
 -- | Like 'lookup' but unsafe with flipped arguments.
 lookup' :: (Eq a) => [(a, b)] -> a -> b
 lookup' alist = fromJust . flip lookup alist
+
+-- | @'safeFoldl1' e f xs@ returns @'foldl1' f xs@ when @xs@ is nonempty
+--   otherwise returns @e@.
+safeFoldl1 :: a -> (a -> a -> a) -> [a] -> a
+safeFoldl1 e _ [] = e
+safeFoldl1 _ f xs = foldl1 f xs

@@ -1,13 +1,13 @@
 -- |
 -- Module    : FrontEnd.Parsec
--- Copyright : (c) Radek Micek 2009-2010
+-- Copyright : (c) Radek Micek 2009, 2010
 -- License   : BSD3
 -- Stability : experimental
 --
 -- Functions for parsing.
 --
 module FrontEnd.Parsec
-       ( 
+       (
          Parsec
        , ParseError
        , char
@@ -48,22 +48,22 @@ module FrontEnd.Parsec
 import Numeric (readDec, readHex, showHex)
 import Data.Char (ord)
 
-import Text.Parsec hiding ((<|>), many, space, spaces)
+import Text.Parsec hiding ((<|>), many, space, spaces, label)
 import Control.Applicative hiding (optional, empty)
 import Control.Monad (when)
 
 import Core.Utils
 
--- |Parses number.
+-- | Parses number.
 genericNumber
-  :: (Parsec String st Char)          -- Parses one digit.
-  -> (String -> [(Integer, String)])  -- Converts digits to number.
-  -> (Integer -> String)              -- Converts number to string.
-  -> String                           -- Name what is being read.
-  -> Int                              -- Minimal value.
-  -> Int                              -- Maximal value.
+  :: (Parsec String st Char)          -- ^ Parses one digit.
+  -> (String -> [(Integer, String)])  -- ^ Converts digits to number.
+  -> (Integer -> String)              -- ^ Converts number to string.
+  -> String                           -- ^ Label what is being read.
+  -> Int                              -- ^ Minimal value.
+  -> Int                              -- ^ Maximal value.
   -> Parsec String st Int
-genericNumber digit' read' show' name minVal maxVal
+genericNumber digit' read' show' label minVal maxVal
   = try (do i <- liftA (fst . head . read') (many1 digit')
             when (i < minV || i > maxV) (unexpected $ show' i)
             return $ fromInteger i)
@@ -71,16 +71,16 @@ genericNumber digit' read' show' name minVal maxVal
   where
     minV = fromIntegral minVal
     maxV = fromIntegral maxVal
-    desc | minVal == maxVal = name ++ " equal to " ++ show' minV
-         | otherwise        = name ++ " from interval ["
+    desc | minVal == maxVal = label ++ " equal to " ++ show' minV
+         | otherwise        = label ++ " from interval ["
                                 ++ show' minV ++ ", " ++ show' maxV ++ "]"
 
--- |Function (@'number' minVal maxVal@) parses natural number from
--- the interval [@minVal@, @maxVal@].
+-- | Function @'number' minVal maxVal@ parses natural number
+--   from the interval @[minVal, maxVal]@.
 number :: Int -> Int -> Parsec String st Int
 number = genericNumber digit readDec show "number"
 
--- |Parses escape sequence.
+-- | Parses escape sequence.
 escapeSeq :: Parsec String st Char
 escapeSeq = char '\\' *> (p_char <|> p_num <|> p_any) <?> "escape sequence"
   where
@@ -99,7 +99,7 @@ escapeSeq = char '\\' *> (p_char <|> p_num <|> p_any) <?> "escape sequence"
     p_any = anyChar
     chars = zip escapeCodes escapeChars
 
--- |Skips all spaces and comments.
+-- | Skips all spaces and comments.
 skipSpacesAndComments :: Parsec String st ()
 skipSpacesAndComments = skipMany (space <|> comment)
   where
@@ -112,22 +112,19 @@ skipSpacesAndComments = skipMany (space <|> comment)
         <|> (char '\n' >> option () (char '\r' >> return ()))
         <?> "end of line"
 
--- |Same as @'number'@ function but skips all spaces and comments after
--- the number.
+-- | Same as 'number' but skips all spaces and comments after the number.
 number_ :: Int -> Int -> Parsec String st Int
 number_ minVal maxVal = number minVal maxVal <* skipSpacesAndComments
 
--- |Same as @'escapeSeq'@ function but skips all spaces and comments after
--- the escape sequence.
+-- | Same as 'escapeSeq' but skips all spaces and comments after
+--   the escape sequence.
 escapeSeq_ :: Parsec String st Char
 escapeSeq_ = escapeSeq <* skipSpacesAndComments
 
--- |Same as @'char'@ function but skips all spaces and comments after the read
--- character.
+-- | Same as 'char' but skips all spaces and comments after the character.
 char_ :: Char -> Parsec String st Char
 char_ c = char c <* skipSpacesAndComments
 
--- |Same as @'noneOf'@ function but skips all spaces and comments after
--- the read character.
+-- | Same as 'noneOf' but skips all spaces and comments after the character.
 noneOf_ :: String -> Parsec String st Char
 noneOf_ cs = noneOf cs <* skipSpacesAndComments
