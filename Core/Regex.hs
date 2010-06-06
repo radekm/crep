@@ -36,12 +36,12 @@ data Regex p s c where
   And :: Regex p s c -> Regex p s c -> Regex p s c
   -- @'Concat' a b@ denotes @L = {uv | u in L(a), v in L(b)}@.
   Concat :: Regex p s c -> Regex p s c -> Regex p s c
-  -- @'Star' a@ denotes
-  -- @L = {u_1 u_2 ... u_n | u_i in L(a), n is natural number}@.
-  Star :: Regex p s No -> Regex p s c
+  -- @'RepeatU' lo a@ denotes
+  -- @L = {u_1 u_2 ... u_n | u_i in L(a), n is natural number, lo <= n}@.
+  RepeatU :: !Int -> Regex p s c -> Regex p s c
   -- @'Repeat' lo hi a@ denotes
   -- @L = {u_1 ... u_n | u_i in L(a), n is natural number, lo <= n <= hi}@.
-  Repeat :: !Int -> !Int -> Regex p s No -> Regex p s c
+  Repeat :: !Int -> !Int -> Regex p s c -> Regex p s c
   -- @'Not' a@ denotes @L = all words except those in L(a)@.
   Not :: Regex p s No -> Regex p s c
   -- @'Capture' i a@ denotes @L = L(a)@.
@@ -60,8 +60,8 @@ removeCaptures (CharClass set)  = CharClass set
 removeCaptures (Or a b)         = removeCaptures a `Or` removeCaptures b
 removeCaptures (And a b)        = removeCaptures a `And` removeCaptures b
 removeCaptures (Concat a b)     = removeCaptures a `Concat` removeCaptures b
-removeCaptures (Star a)         = Star a
-removeCaptures (Repeat lo hi a) = Repeat lo hi a
+removeCaptures (RepeatU lo a)   = RepeatU lo $ removeCaptures a
+removeCaptures (Repeat lo hi a) = Repeat lo hi $ removeCaptures a
 removeCaptures (Not a)          = Not a
 removeCaptures (Capture _ a)    = removeCaptures a
 
@@ -72,7 +72,7 @@ listCaptures (CharClass _)  = []
 listCaptures (Or a b)       = listCaptures a ++ listCaptures b
 listCaptures (And a b)      = listCaptures a ++ listCaptures b
 listCaptures (Concat a b)   = listCaptures a ++ listCaptures b
-listCaptures (Star _)       = []
-listCaptures (Repeat _ _ _) = []
+listCaptures (RepeatU _ a)  = listCaptures a
+listCaptures (Repeat _ _ a) = listCaptures a
 listCaptures (Not _)        = []
 listCaptures (Capture i a)  = i:listCaptures a

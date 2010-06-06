@@ -46,7 +46,10 @@ toRE (CharClass set) = RCharClass set
 toRE (Or a b)        = consOr [toRE a, toRE b]
 toRE (And a b)       = consAnd [toRE a, toRE b]
 toRE (Concat a b)    = consConcat [toRE a, toRE b]
-toRE (Star a)        = consStar $ toRE a
+toRE (RepeatU lo a)  = consConcat $ mandatory ++ [consStar newA]
+  where
+    mandatory = replicate lo newA
+    newA      = toRE a
 toRE (Repeat lo hi a)
   = consConcat $ mandatory ++ (replicate (hi-lo)
                                          (consOr [newA, REpsilon]))

@@ -61,9 +61,9 @@ p_repeat = p_natom <**> option id p_quantifier
 
 -- | Parses quantifier.
 p_quantifier :: Parsec String st (Regex p Char Yes -> Regex p Char Yes)
-p_quantifier = choice [ char_ '*' >> return (repeat 0 Nothing)
-                      , char_ '+' >> return (repeat 1 Nothing)
-                      , char_ '?' >> return (repeat 0 $ Just 1)
+p_quantifier = choice [ char_ '*' >> return (RepeatU 0)
+                      , char_ '+' >> return (RepeatU 1)
+                      , char_ '?' >> return (Repeat 0 1)
                       , between (char_ '{') (char_ '}') p_counter
                       ]
   where
@@ -71,23 +71,7 @@ p_quantifier = choice [ char_ '*' >> return (repeat 0 Nothing)
                    y <- option (Just x)
                                (char_ ',' >>
                                 optionMaybe (number_ x maxRepetitions))
-                   return $ repeat x y
-    repeat x y' r
-      = case y' of
-          Just y
-            -- (r){m,n} ===> (r) r{m-1,n-1}
-            | x > 0     -> Concat r $ Repeat (x-1) (y-1) r'
-            -- (r){0,n} ===> (r)? r{0,n-1}
-            | y > 0     -> Concat (Or r Epsilon) $ Repeat 0 (y-1) r'
-            -- (r){0,0} ===> epsilon
-            | otherwise -> Epsilon
-          Nothing
-            -- (r){m,} ===> (r) r{m-1,}
-            | x > 0     -> Concat r $ Concat (Repeat (x-1) (x-1) r') (Star r')
-            -- (r){0,} ===> (r)? r{0,}
-            | otherwise -> Concat (Or r Epsilon) $ Star r'
-      where
-        r' = removeCaptures r
+                   return $ maybe (RepeatU x) (\y' -> Repeat x y') y
 
 -- | Parses negated atom.
 p_natom :: (Pa p Char, RegexParserSt st)
