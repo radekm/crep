@@ -4,7 +4,7 @@ module Main where
 import Core.Partition ()
 import Core.RE ()
 import Core.Rule ()
-import FrontEnd.RegexParser ()
+import FrontEnd.RuleParser ()
 
 main :: IO ()
 main = return ()

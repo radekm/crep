@@ -25,6 +25,7 @@ executable crep
     Core.Utils
     FrontEnd.Parsec
     FrontEnd.RegexParser
+    FrontEnd.RuleParser
 
   build-depends: base >= 4.2 && < 5, parsec >= 3.0.1 && < 3.1,
                  array >= 0.3 && < 0.4, containers >= 0.3 && < 0.4

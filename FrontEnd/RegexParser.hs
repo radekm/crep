@@ -27,14 +27,15 @@ import Core.Partition
 import Core.Utils
 
 class RegexParserSt a where
-  -- | Generates new number for capture.
+  -- | Generates new number for capturing group.
   newCaptureNum :: a -> (Int, a)
-  -- | Content of the capturing group cannot be captured because:
-  --
-  -- * Capturing group is in complement.
-  --
-  -- * Number of capturing group is higher than 'maxCaptureNum'.
+  -- | This function is called when capturing group is subexpression
+  --   of complement. Content of such group cannot be captured.
   cannotCapture :: Int -> a -> a
+  -- | This function is called when the number of capturing groups exceeds
+  --   'maxCaptureNum'. Only first 'maxCaptureNum' groups will stay capturing
+  --   remaining groups will be non-capturing.
+  tooManyCaptures :: a -> a
 
 -- | Parses regular expression.
 p_regex :: (Pa p Char, RegexParserSt st)
@@ -103,7 +104,7 @@ p_group = between (char_ '(') (char_ ')') (p_quest <*> p_regex) <?> "group"
                             then do putState newSt
                                     return $ Capture num
                             -- Too high capture number.
-                            else do modifyState (cannotCapture num)
+                            else do modifyState tooManyCaptures
                                     return id
                      ]
 
@@ -153,6 +154,6 @@ p_charInClass = noneOf_ "\\]-" <|> escapeSeq_ <?> "character"
 maxRepetitions :: Int
 maxRepetitions = 999
 
--- | Maximal number of capturing group.
+-- | Maximal number of capturing groups.
 maxCaptureNum :: Int
 maxCaptureNum = 999  -- Must be at least 2 digits and must have successor.
