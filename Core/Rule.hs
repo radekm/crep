@@ -14,7 +14,7 @@ import Core.Regex
 
 -- | Rule consists of name, priority, flag for preferred length of selected
 --   parts, regular expression and substitution.
-data Rule p a = Rule Name !Priority !PrefLen (Regex p a Yes) Subst
+data Rule p a = Rule Name !Priority !PrefLen (Regex p a Yes) (Subst a)
 
 -- | Name of the rule.
 type Name = String
@@ -29,13 +29,13 @@ data PrefLen = Shortest | Longest
 
 -- | Substitution consists of terms each term refers to the text captured
 --   by regular expression or it is constant string.
-newtype Subst = Subst [SubstTerm]
-              deriving Show
+newtype Subst a = Subst [SubstTerm a]
+                deriving Show
 
 -- | Terms of the substitution.
-data SubstTerm = TConst String
-               | TCapture !Int
-               deriving Show
+data SubstTerm a = TConst [a]
+                 | TCapture !Int
+                 deriving Show
 
 -- | Number of the rule.
 newtype RuNum = RuN Int
