@@ -1,6 +1,3 @@
-{-# LANGUAGE FlexibleContexts           #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-
 -- |
 -- Module    : Core.DFA
 -- Copyright : (c) Radek Micek 2009, 2010
@@ -9,546 +6,144 @@
 --
 -- Deterministic finite state automaton.
 --
-module Core.DFA where
+module Core.DFA
+       (
+         DFA
+       , State
+       , StateData(..)
+       , Transitions
+       , buildDFA
+       ) where
 
 import qualified Data.Map as M
-import Data.Graph (SCC(..), dfs, stronglyConnCompR)
-import Data.Tree (flatten)
-import Data.Array.Unboxed
-import Data.Array.MArray
-import Data.Array.ST
-import Data.Maybe (isNothing)
-import Data.List (groupBy, sortBy, unfoldr)
-import Data.Monoid (mconcat)
-import Core.SymbSet
+import Data.Array
+import qualified Data.Array.Unboxed as U
+import Data.Array.Unboxed (UArray)
 import Core.Rule
 import Core.RE
-import Control.Monad.ST (ST, runST)
-import Control.Monad
-import Control.Arrow ((***), second)
+import Data.Maybe (fromJust)
+import Data.List (mapAccumL)
+import Core.Partition
+import Data.Monoid (Monoid)
 
--- |Number of the state.
-newtype StNum = StN Int
-              deriving (Eq, Ord, Enum, Show, Ix, IArray UArray)
+infixl 9 !!!
 
-state2Int :: StNum -> Int
-state2Int (StN i) = i
+(!!!) :: UArray Int Int -> Int -> Int
+(!!!) = (U.!)
 
-data StateData a
+data StateData p a
   = SD {
-         -- List of the rules which match in this state.
+         -- | List of the rules which match in this state.
          sdMatches :: [RuNum]
-         -- Priority of the rules which match in this state.
+         -- | Priority of the maximal rule which match in this state.
        , sdMatchPrio :: Maybe Priority
-         -- Highest priority of the rule which is reachable from this state
-         -- by some non-empty word.
+         -- | Priority of the maximal rule which is reachable from this state
+         --   by some non-empty word.
        , sdReachablePrio :: Maybe Priority
-         -- Transitions from this state. Every symbol appears just in one
-         -- symbol set and every state appears at most once.
-       , sdTrans :: [(SymbSet a, StNum)]
+         -- | Transition table of the state is represented as partition
+         --   of the alphabet. Block ids represent destination states.
+       , sdTrans :: Transitions p a
        }
 
--- Initial state has index 0.
-newtype DFA a = DFA (Array StNum (StateData a))
+-- | Transitions of one state.
+type Transitions p a = p a
 
-{-
-showDFA :: DFA a -> String
-showDFA (DFA dfa')
-  = unlines [let sd = dfa' ! i
-             in show (i, map snd $ sdTrans sd, sdMatches sd
-                     ,sdReachablePrio sd) | i <- [a..b]]
-  where
-    (a, b) = bounds dfa'
--}
-
-unDFA :: DFA a -> Array StNum (StateData a)
-unDFA (DFA a) = a
-
--- |Makes deterministic finite state automaton from regular expressions.
-resToDFA :: [(RE, Priority)] -> DFA Char
-resToDFA rsPrio = toDFA rsPrio $ brzoCons rsPrio
-
--- |Returns list with reachable states. First state in the list is initial
--- state.
-reachable :: DFA a -> [StNum]
-reachable (DFA dfa') = map StN $ flatten $ head $ dfs graph [0]
-  where
-    (a, b) = (state2Int *** state2Int) (bounds dfa')
-    graph  = listArray (a, b) [map (state2Int . snd)
-                                   (sdTrans $ dfa' ! StN i) | i <- [a..b]]
-
--- |Removes states which are not reachable from the initial state. Remaining
--- states are renumbered.
-removeUnreachableStates :: DFA a -> DFA a
-removeUnreachableStates dfa = DFA 
-    $ array (StN 0, lastI) [(newStNums ! i, updateStNums $ dfa' ! i) | i <- rs]
-  where
-    dfa'  = unDFA dfa
-    rs    = reachable dfa
-    lastI = StN $ length rs - 1
-
-    newStNums :: UArray StNum StNum
-    newStNums = accumArray (flip const) (StN (-1)) (bounds dfa')
-                                                   (zip rs [StN 0..])
-
-    -- Updates state numbers in transitions inside StateData.
-    updateStNums (SD ms m r ts) = SD ms m r $ map (second (newStNums !)) ts
-
--- |Strongly connected components topologically sorted.
-scc :: DFA a -> [SCC (Maybe Priority, StNum, [StNum])]
-scc = stronglyConnCompR . map convertState . assocs . unDFA
-  where
-    convertState (i, st) = (sdMatchPrio st, i, map snd $ sdTrans st)
-
--- |For each state computes highest priority which can match
--- (i.e. value of sdReachablePrio).
-computeReachablePrio :: DFA a -> DFA a
-computeReachablePrio dfa
-  = DFA $ listArray bnds [newStateData i | i <- uncurry enumFromTo bnds]
-  where
-    dfa' = unDFA dfa
-    bnds = bounds dfa'
-    cs   = scc dfa
-
-    -- We save all reachable priorities into mutable unboxed array and so
-    -- we cannot use Maybe type. We instead use Int where minBound is treated
-    -- as Nothing.
-    defPr                  = minBound
-    -- Converts Maybe Priority into Int.
-    fromPrio (Just (Pr i)) = i
-    fromPrio _             = defPr
-
-    newStateData i = let sd    = dfa' ! i
-                         newPr = maxReachablePrio ! i
-                     in sd {sdReachablePrio = if newPr /= defPr
-                                                then Just $ Pr newPr
-                                                else Nothing}
-
-    maxReachablePrio :: UArray StNum Int
-    maxReachablePrio = runST computeMaxReachablePrioForEachState
-
-    computeMaxReachablePrioForEachState :: ST s (UArray StNum Int)
-    computeMaxReachablePrioForEachState
-      = do maxPrio <- (newArray bnds defPr :: ST s (STUArray s StNum Int))
-           forM_ cs (handleSCC maxPrio)  -- Process SCCs.
-           unsafeFreeze maxPrio
-
-    -- This can handle both vertices from the current SCC (they still have
-    -- defPr as their maximum reachable priority) and vertices from previously
-    -- processed SCCs.
-    handleNeighbours a (n:ns)
-      = do inReach <- readArray a n
-           rest    <- handleNeighbours a ns
-           return $ maximum [inReach, rest, fromPrio (sdMatchPrio $ dfa' ! n)]
-    handleNeighbours _ _
-      = return defPr
-                                   
-    -- All vetices in the strongly connected component are in the cycle.
-    handleSCC a (CyclicSCC xs)
-      = do curMax <- foldM handleVertex defPr xs
-           forM_ xs $ \(_, st, _) -> writeArray a st curMax
-      where
-        handleVertex curMax (pr, _, ns)
-          = do neighbours <- handleNeighbours a ns
-               return $ maximum [curMax, neighbours, fromPrio pr]
-
-    -- Just one vertex which is not part of any cycle.
-    handleSCC a (AcyclicSCC (_, st, ns))
-      = do neighbours <- handleNeighbours a ns
-           writeArray a st neighbours
-
--- |Removes all transitions which lead only to the states with strictly lower
--- priority. More preciously: new state "cesspit" is addded and all such
--- transitions are redirected to cesspit. Automaton cannot leave cesspit.
-removeTransitionsToLowerPrio :: Bounded a => DFA a -> DFA a
-removeTransitionsToLowerPrio (DFA dfa')
-  = DFA $ array (a, cesspit)
-        $ (cesspit, cpData):[(i, newStateData i) | i <- [a..b]]
-  where
-    (a, b) = bounds dfa'
-
-    cesspit = succ b
-    cpData  = SD [] Nothing Nothing [(alphabet, cesspit)]
-
-    newStateData i
-      -- No regular expression matches in this state => we leave it untouched.
-      | isNothing matchPr = orig
-      -- All transitions go to the states states with lower priority.
-      | matchPr > reachPr = SD ms matchPr Nothing [(alphabet, cesspit)]
-      -- Some transitions may lead to the states with lower priority.
-      -- And if there are any we redirect them to the cesspit.
-      -- Important thing is that sdReachablePrio remains same.
-      | otherwise         = SD ms matchPr reachPr (map updateTrans trans)
-      where
-        orig@(SD ms matchPr reachPr trans) = dfa' ! i
-
-        updateTrans t@(symbols, st)
-          -- Only states with lower priority are reachable by transition @t@.
-          | p < matchPr = (symbols, cesspit)
-          | otherwise   = t
-          where
-            sd = dfa' ! st
-            p  = max (sdMatchPrio sd) (sdReachablePrio sd)
-
--- |Sorts the list of pairs by the second value. Then groups values
--- in the list by the second value too. 
-sortAndGroupBySnd :: Ord b => [(a, b)] -> [[(a, b)]]
-sortAndGroupBySnd = groupBy (co2 (==) snd) . sortBy (co2 compare snd)
-  where
-    co2 f t a b = f (t a) (t b)
-
--- |Normalized list contains each state at most once.
-normalizeTrans :: (Ord a, Bounded a, Ord dest) => [(SymbSet a, dest)]
-               -> [(SymbSet a, dest)]
-normalizeTrans = map (\xs@((_, st):_) -> (foldl union empty $ map fst xs, st))
-               . sortAndGroupBySnd
-
-newtype EqClassId = ECI Int
-                  deriving (Eq, Ord, Enum, IArray UArray)
-
-id2Int :: EqClassId -> Int
-id2Int (ECI i) = i
-
-type EqClass = [StNum]
-
-type Equivalence = [EqClass]
-
--- |Given equivalence on states it returns number of equivalence classes
--- and array with equivalence class for each state.
-arrState2ClassId :: (StNum, StNum)
-                 -> Equivalence
-                 -> (Int, UArray StNum EqClassId)
-arrState2ClassId b = (id2Int *** array b) . foldl f (ECI 1, [])
-  where
-    f (nextId, stateIdPairs) eqClass
-      = case eqClass of
-          -- Equivalence class contains initial state.
-          (StN 0:_)
-            -> (nextId,      [(st, ECI 0)  | st <- eqClass] ++ stateIdPairs)
-          _ -> (succ nextId, [(st, nextId) | st <- eqClass] ++ stateIdPairs)
-
--- |Computes k-equivalences of the states in the automaton. Returned list
--- contains 0-equivalence, 1-equivalence, 2-equivalence ...
+-- | Deterministic finite state automaton.
 --
--- Note: k-equivalence means that states cannot be differentiated by words
--- with length <= k.
-kEquivalences :: (Ord a, Bounded a, Ord (SymbSet a)) => DFA a -> [Equivalence]
-kEquivalences (DFA dfa') = initialEquivalence:unfoldr refineEquivalence
-                                                      initialEquivalence
-  where
-    -- Two states belong to the same eq. class iff they have equal sdMatches.
-    initialEquivalence :: Equivalence
-    initialEquivalence = map (map fst) $ sortAndGroupBySnd
-                                       $ map (id *** sdMatches) $ assocs dfa'
+--   Initial state has index 0.
+type DFA p a = Array State (StateData p a)
 
-    -- Returns Nothing when no equivalence class was refined.
-    refineEquivalence :: Equivalence -> Maybe (Equivalence, Equivalence)
-    refineEquivalence e = if refined then Just (newCs, newCs) else Nothing
-      where       
-        (refined, newCs) = foldl refineClass (False, []) e
+-- | State number.
+type State = Int
 
-        refineClass (flag, cs) c
-          = case map (map fst) $ sortAndGroupBySnd $ map eachState c of
-              [_] -> (flag, c:cs)  -- Class was not refined.
-              xs  -> (True, xs ++ cs)
-          where
-            -- Returns state and transitions into equivalence classes.
-            eachState st = (st, normalizeTrans $ map (second st2Id)
-                                                     (sdTrans $ dfa' ! st))
-
-        -- Maps states to their equivalence classes.
-        st2Id :: StNum -> EqClassId
-        st2Id = (!) (snd $ arrState2ClassId (bounds dfa') e)
-
--- |Given the equivalence it returns quotient automaton. Initial state 
-mergeEquivalentStates :: (Ord a, Bounded a) => DFA a -> Equivalence -> DFA a
-mergeEquivalentStates (DFA dfa') equiv
-  = DFA $ array (StN 0, StN $ numClasses - 1) (map eachEqClass equiv)
-  where
-    (numClasses, arrStId) = arrState2ClassId (bounds dfa') equiv
-    st2Equiv              = StN . id2Int . (arrStId !)
-    eachEqClass cs
-      = (st2Equiv st, sd {sdTrans = normalizeTrans $ map (second st2Equiv)
-                                                         (sdTrans sd)})
-      where
-        st = head cs
-        sd = dfa' ! st
-
-{-
--- |Moore's minimization.
-minimize :: (Symbol a, Ord (SymbSet a)) => DFA a -> DFA a
-minimize dfa = mergeEquivalentStates dfa $ last $ kEquivalences dfa
--}
-
--- |Moore's k-minimization. States which cannot be differentiated by words
--- with length <= k are merged.
-kMinimize :: (Ord a, Bounded a, Ord (SymbSet a)) => Int -> DFA a -> DFA a
-kMinimize k dfa = mergeEquivalentStates dfa
-                    $ last $ take k $ kEquivalences dfa
-
--- |Converts list to unboxed array.
-toU :: IArray UArray a => Int -> [a] -> UArray Int a
-toU len xs = listArray (0, len - 1) xs
-
-
-------------------------------------------------------------------------------
--- Brzozowski's construction of DFA
+-- ---------------------------------------------------------------------------
+-- DFA construction Brzozowski
 --
 -- We use idea described in article
--- "Regular-expression derivatives reexamined" by Scott Owens, John Reppy and
--- Aaron Turon.
+-- "Regular-expression derivatives reexamined" by Scott Owens, John Reppy
+-- and Aaron Turon.
 
--- |Regular expression number.
-newtype RENum = REN Int
-              deriving (Eq, Ord, Show, IArray UArray)
+-- | Vector representing state.
+type Vector = [Int]
 
--- |Structure which represents data of the state in Brzozowski's automaton.
-data BrzoStateData = BSD { 
-                           -- State number.
-                           bsdStNum :: !StNum
-                           -- Transitions of the state. Character sets form
-                           -- partition of the alphabet.
-                         , bsdTrans :: [(CharSet, StNum)]
-                           -- List of rules which match in this state.
-                         , bsdMatches :: [RuNum]
-                         }
-                   deriving Show
-
--- |Representation of partial automaton in Brzozowski's construction.
---
--- States in Brzozowski's construction are normally represented by vectors
--- of regular expressions. But we will represent them by vectors of numbers
--- (@UArray Int RENum@). Each number in the vector represents regular
--- expression. The main advantage of this representation is that we can
--- compare two vectors of numbers faster than two vectors of regular
--- expressions.
---
--- To associate number with regular expression we use map @bREs@. When
--- the regular expression is in the map we use the number from the map
--- otherwise we add it to the map with some unique number.
--- 
--- In transitions we don't use vectors of numbers for state representation
--- instead we associate each vector with its unique number of type @StNum@.
--- Associations of vectors with their numbers are hold in @bStates@.
--- (This makes conversion from @BrzoDFA@ to @DFA@ easier.)
---
--- The transitions of each state are saved into @bStData@ list.
--- Each state is represented by one item in the list. The item consists
--- of the state number, transitions and list of all rules which match
--- in this state.
---
--- For each state construction algorithm computes which rules match in that
--- state. When some rule matches it has no sense to ask whether some other
--- rule with lower priority matches. And so we need to determine which rules
--- should we examine whether they match. For this purpose we use function
--- @bWhatCanMatch@ which is called @bWhatCanMatch dfa r@ where @dfa@ is the
--- partial automaton and @r@ is the lowest number of the rule which matches.
--- The function returns number of the rule @r2@ and all rules between @r@
--- and @r2@ should be examined.
---
--- (Rule with lower number must not have lower priority than the rule with
--- higher number -- i.e. rules are ordered by priority.)
-data BrzoDFA
+-- | States are represented by vectors of regular expressions.
+--   We map regular expressions to integers and vectors of integers to state
+--   numbers and so we represent state by numbers.
+data BDFA p a
   = BDFA {
-           -- Maps regular expressions to numbers. 
-           bREs :: M.Map RE RENum
-           -- Maps state vectors to state numbers.
-         , bStates :: M.Map (UArray Int RENum) StNum
-           -- Data of states.
-         , bStData :: [BrzoStateData]
-           -- Which rules can match.
-         , bWhatCanMatch :: RuNum -> RuNum
-           -- Count of the rules.
-         , bVectLength :: Int
+           bRegex2Num :: M.Map (RE p a) Int
+         , bVector2State :: M.Map Vector State
+         , bStates :: [(State, StateData p a)]
          }
 
--- |Constructs Brzozowski's automaton for given regular expressions.
-brzoCons :: [(RE, Priority)] -> BrzoDFA
-brzoCons rsPrio
-  = fst $ buildBrzoState (BDFA mapREs M.empty [] wcmFunc len)
-                         (toU len reNums) rs
+-- | Builds automaton recognizing given rules.
+buildDFA :: (Monoid (p a), Ord (p a), Pa p a) => [Rule p a] -> DFA p a
+buildDFA = toDFA . fst . constructState emptyBDFA . reList
   where
-    (rs, ps) = unzip rsPrio
-    len   = length rsPrio
-    -- Rule numbers and corresponding priorities.
-    rsNum = reverse $ zip [0..] ps
-    -- What can match function.
-    wcmFunc (RuN i) = RuN $ toU len [ let prio = ps !! j
-                                      -- Highest number of the rule which
-                                      -- has priority @prio@.
-                                      in fst $ head
-                                             $ filter ((== prio) . snd) rsNum
-                                    | j <- [0..(len-1)]] ! i
-    -- Add regular expressions to the map.
-    (mapREs, reNums) = addREList M.empty rs
+    reList     = map (\(Rule _ _ _ re _) -> toRE re)
+    emptyBDFA  = BDFA M.empty M.empty []
+    toDFA bdfa = array (0, pred $ M.size $ bVector2State bdfa) (bStates bdfa)
 
--- |Adds regular expression to the map. Returns new map and number of regular
--- expression.
-addRE :: M.Map RE RENum -> RE -> (M.Map RE RENum, RENum)
-addRE mapREs r = case oldRENum of
-                   Just n -> (mapREs, n)
-                   -- Regular expression @r@ was not in the map.
-                   _      -> (newMapREs, newRENum)
+addRE :: Ord (p a)
+      => M.Map (RE p a) Int -> RE p a -> (M.Map (RE p a) Int, Int)
+addRE m re = case M.insertLookupWithKey f key newVal m of
+               (Just reNum, _)   -> (m, reNum)
+               (Nothing, newMap) -> (newMap, newVal)
   where
-    -- Number if @r@ is not in @mapREs@.
-    newRENum = REN (M.size mapREs)
-    -- Inserts @r@ into @mapREs@. If @r@ isn't there, returns
-    -- @(Nothing, newREs)@ where @newREs@ is a map with @r@ added otherwise
-    -- returns @(Just n, _)@ where @n@ is the number of @r@ from the map.
-    (oldRENum, newMapREs) = M.insertLookupWithKey (\_ _ old -> old) r
-                              newRENum mapREs
+    f _key _newVal oldVal = oldVal
+    key    = re
+    newVal = M.size m
 
--- |Adds all regular expressions in the list to the map and returns their
--- numbers.
-addREList :: M.Map RE RENum -> [RE] -> (M.Map RE RENum, [RENum])
-addREList mapREs = second reverse . foldl addOneRE (mapREs, [])
+addVector :: Vector
+          -> M.Map Vector State
+          -> (State, Maybe (M.Map Vector State))
+addVector vect m = case M.insertLookupWithKey f key newVal m of
+                     (Just st, _)      -> (st, Nothing)
+                     (Nothing, newMap) -> (newVal, Just newMap)
   where
-    addOneRE (oldREs, reNumList) r
-      = let (newREs, reNum) = addRE oldREs r
-        in (newREs, reNum:reNumList)
+    f _key _newVal oldVal = oldVal
+    key    = vect
+    newVal = M.size m
 
--- |Builds state of Brzozowski's automaton and returns partial automaton
--- with the state and state number. State is considered to be built when it
--- is inside @bStates@ map.
+-- | Function @'constructState' bdfa reList@ returns new automaton with
+--   state given by @reList@.
+constructState :: (Monoid (p a), Ord (p a), Pa p a)
+               => BDFA p a -> [RE p a] -> (BDFA p a, State)
+constructState bdfa reList
+  = case maybeVect2State of
+      Nothing
+        -> (bdfa, st)  -- State is already in automaton.
+      Just _
+        -> (bdfa'' { bStates = (st, stateData):(bStates bdfa'') }, st)
+  where
+    -- Map regular expressions.
+    (regex2Num, vector) = mapAccumL addRE (bRegex2Num bdfa) reList
+    -- Map vector.
+    (st, maybeVect2State) = addVector vector (bVector2State bdfa)
+
+    bdfa' = BDFA regex2Num (fromJust maybeVect2State) (bStates bdfa)
+    (transitions, bdfa'') = buildTransitions reList bdfa'
+    stateData = SD whatMatches Nothing Nothing transitions
+    whatMatches = map fst $ filter snd $ zip [RuN 0..] $ map nullable reList
+
+-- | Function @'buildTransitions' reList bdfa@ returns transitions
+--   for the state given by @reList@ and new automaton @bdfa'@ where all
+--   states reachable from state given by @reList@ are constructed.
 --
--- If the state is not in the map we build its transitions and all states
--- which are reachable from this state.
-buildBrzoState :: BrzoDFA -> UArray Int RENum -> [RE] -> (BrzoDFA, StNum)
-buildBrzoState dfa stVect reList
-  = case oldStNum of
-      Just stNum -> (dfa, stNum)
-      -- State is not in the automaton. We have to construct it.
-      Nothing -> (newDFA, newStNum)
+--   @bdfa@ contains state given by @reList@. That means that regular
+--   expressions in @reList@ are also in @'bRegex2Num' bdfa@ and vector
+--   representing state is in @'bVector2Num' bdfa@.
+buildTransitions :: (Monoid (p a), Ord (p a), Pa p a)
+                 => [RE p a] -> BDFA p a -> (Transitions p a, BDFA p a)
+buildTransitions reList bdfa = (transitions, bdfa')
   where
-    newStNum = StN $ M.size (bStates dfa)
-    (oldStNum, newStates) = M.insertLookupWithKey (\_ _ old -> old) stVect
-                              newStNum (bStates dfa)
-
-    -- Which rules match in the state.
-    newMatches = case matches of
-                   m:ms -> m:takeWhile (<= bWhatCanMatch dfa m) ms
-                   _    -> []
-      where
-        matches = map fst $ filter snd $ zip [(RuN 0)..] $ map nullable reList
-    
-    alphabetPartition = partitionAlphabetByDerivativesMany reList
-
-    -- Create outgoing transitions. For each block of the @alphabetPartition@
-    -- we build destination state and transition to that state. We have to add
-    -- current state into the map to prevent building it again when calling
-    -- @buildBrzoState@ recursively.
-    (dfa', newTrans) = foldl buildNextState (dfa {bStates = newStates}, [])
-                         (fromPartition alphabetPartition)
-      where
-        -- 
-        buildNextState (auto, finTrans) blockOfPart
-          = (newAuto, (blockOfPart, stateNum):finTrans)
-          where
-            -- Derivative of list with regular expressions.
-            reList' = map (derivative $ firstSymb blockOfPart) reList
-            -- Create @stList'@ with numbers of regular expressions. Regular
-            -- expression which were not in @bREs auto@ are added to @newREs@.
-            (newREs, stList') = addREList (bREs auto) reList'
-            -- Vector with regular expression numbers.
-            stVect' = toU (bVectLength dfa) (reverse stList')
-            -- Add regular expressions to automaton.
-            auto' = auto {bREs=newREs} 
-
-            (newAuto, stateNum) = buildBrzoState auto' stVect' reList'
-
-    newDFA = dfa' {bStData = BSD {bsdStNum=newStNum, bsdTrans=newTrans
-                                 ,bsdMatches=newMatches}:bStData dfa'}
-
--- |Converts BrzoDFA to DFA.
-toDFA :: [(RE, Priority)] -> BrzoDFA -> DFA Char
-toDFA rsPrio brzoDFA
-  = DFA $ array
-      (StN 0, StN $ M.size (bStates brzoDFA) - 1) $
-      map (\st -> let matches                = bsdMatches st
-                      getMatchPrio (RuN m:_) = Just $ snd (rsPrio !! m)
-                      getMatchPrio _         = Nothing
-                  in (bsdStNum st, SD matches (getMatchPrio matches) Nothing
-                                      (bsdTrans st)))
-          (bStData brzoDFA)
-
-------------------------------------------------------------------------------
--- State partitioning for alphabet compression
---
--- We use algorithm described in article
--- "Efficient Signature Matching with Multiple Alphabet Compression Tables"
--- by Shijin Kong, Randy Smith and Cristian Estan
-
--- |Partitions states of @dfa@ into @m@ partitions or less.
--- Transitions in automaton must be normalized.
-partitionStates :: DFA Char -> Int -> [[StNum]]
-partitionStates (DFA dfa') = createPartitions allStates
-                                              (succ $ state2Int lastSt)
-  where
-    bnds@(_, lastSt) = bounds dfa'
-    allStates        = uncurry enumFromTo bnds
-
-    -- Group symbols with same beahviour in given states.
-    groupSymbols = fromPartition . mconcat .
-                   concatMap (map (toPartition . fst) . sdTrans . (dfa' !))
-
-    -- Creates @m@ partitions.
-    createPartitions sts stsLen m
-      | m == 1 = if null sts then [] else [sts]
-      | m > 1
-      = case partitionSts sts stsLen of
-          (fin@(_:_), again, againLen) -> fin:createPartitions again againLen
-                                                               (pred m)
-          ([], [], _)                  -> []
-          ([], again, _)               -> [again]
-      | otherwise = error "partitionStates: invalid number of partitions"
-
-    -- Partitions states into @fin@ which has small number of groups of symbols
-    -- and @removed@ which containts strictly more than half of the states.
-    -- Returns @(fin, removed, removedLen)@.
-    partitionSts origSts origLen
-      = until (\(fin, _, removedLen) -> removedLen > half || null fin)
-              (\(fin, removed, removedLen) ->
-                let (remaining, removed', removedLen') = removeSts fin
-                in (remaining, removed ++ removed', removedLen + removedLen'))
-              (origSts, [], 0)
-      where
-        half = origLen `div` 2
-
-    -- Removes the smallest subset of states such that remaining states have
-    -- less groups of symbols. Returns @(remaining, removed, removedLen)@.
-    removeSts origSts
-      = case findSmallestSetToRemove $ combinations2 groupedSymbs of
-          Just result -> result
-          _           -> ([], origSts, length origSts)
-      where
-        groupedSymbs = groupSymbols origSts
-
-        -- For each pair of symbol groups we find which states must be removed
-        -- to merge the groups. We remember smallest set of states.
-        --
-        -- Nothing is returned when symbolPairs is empty
-        -- (no states implies it).
-        findSmallestSetToRemove 
-          = foldl (\st (a, b) ->
-                    let new@(_, _, newRemovedLen) = partit a b
-                    in case st of
-                         old@(Just (_, _, oldRemovedLen))
-                           | oldRemovedLen <= newRemovedLen -> old
-                         _ -> Just new)
-                  Nothing
-          where
-            partit a b = partit' origSts [] [] 0
-              where
-                ab = union a b
-                partit' (st:restSts) goodSts badSts badLen
-                  -- TODO: we can stop when symbol set equal to ab is found.
-                  | any (`notElem` [empty, ab]) $ map (intersect ab) $
-                    map fst $ sdTrans $ dfa' ! st
-                  = partit' restSts goodSts (st:badSts) (succ badLen)
-                  | otherwise
-                  = partit' restSts (st:goodSts) badSts badLen
-                partit' _ goodSts badSts badLen = (goodSts, badSts, badLen)
-
-    combinations2 (a:xs) = [(a, b) | b <- xs] ++ combinations2 xs
-    combinations2 []     = []
-
+    pa = partitionAlphabetByDerivativesMany reList
+    (blocks, symbols) = unzip $ representatives pa
+    -- @states@ is list with destination states.
+    (bdfa', states)
+      = mapAccumL (\dfa s -> constructState dfa $ map (derivative s) reList)
+                  bdfa symbols
+    block2State :: UArray BlockId State
+    block2State = U.array (0, maximum blocks) (zip blocks states)
+    -- Replace block ids by states.
+    transitions = pmap (block2State!!!) pa

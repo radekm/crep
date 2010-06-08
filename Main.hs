@@ -1,16 +1,32 @@
 
 module Main where
 
-import Core.Partition ()
+import Data.Array
+import System.Environment (getArgs)
+import Core.Partition (PartitionL)
 import Core.RE ()
 import Core.Rule ()
-import FrontEnd.RuleParser ()
+import Core.DFA
+import FrontEnd.RuleParser
+import Control.Applicative ((<$>))
 
 main :: IO ()
-main = return ()
+main = do rulesFile <- head <$> getArgs
+          rulesStr <- readFile rulesFile
+          let parsed = parseRules rulesStr
+          case parsed of
+            Left errMsg -> putStrLn $ "Parsing of rules was not successful: "
+                                      ++ show errMsg
+            Right rules -> do
+              putStrLn "Parsing OK"
+              -- Build Brzozowski's automaton and print number of its states.
+              putStrLn "Starting Brzozowski's construction..."
+              let dfa = buildDFA $ map pRule (rules :: [ParsedRule PartitionL])
+              let numOfStates = succ $ snd $ bounds $ dfa
+              putStrLn $ "Automaton has " ++ show numOfStates ++ " states"
+
 
 {-
-import System.Environment (getArgs)
 import FrontEnd.RuleParser (parseRules)
 import Core.Rule (Rule(..), Priority(..))
 import Core.RE (toRE)
@@ -18,7 +34,6 @@ import Core.DFA (resToDFA, unDFA, state2Int, removeUnreachableStates
                 ,computeReachablePrio, removeTransitionsToLowerPrio
                 ,kMinimize)
 import Control.Applicative ((<$>))
-import Data.Array
 
 main :: IO ()
 main = do rulesFile <- head <$> getArgs
