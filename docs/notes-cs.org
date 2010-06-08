@@ -1,0 +1,75 @@
+* Rozklady abecedy (Core.Partition)
+-lze mit ruzne kombinace dle toho, co je strict a unboxed
+-unboxed vyzaduje duplikaci kodu (BYLO)
+-PartitionL ma strict v prvky a lazy spine, prvky boxovany (JE)
+
+** JE: Jako seznam intervalu, u kazdy interval ma cislo bloku
+-to jest [(cislo bloku, symbol)]
+-vyhodne pro automatove algoritmy -- lze reprezentovat prechody automatu
+-mnozinove funkce snadno (prunik, sjednoceni, doplnek)
+-rychly prunik rozkladu (mappend) v O(n log n)
+-TODO?: mappend pomoci radixoveho trideni O(n)
+-lze implementovat pomoci seznamu (JE) nebo poli
+
+** BYLO: Pomoci mnozin symbolu
+-mnozina symbolu jako seznam intervalu, co jsou v mnozine: [Range a]
+-rozklad jako: [ [Range a] ]
+-nebo s cislovanymi bloky jako [ [(cislo bloku, Range a)] ]
+-pomaly prunik rozkladu (mappend) v O(n^2)
+-mnozinove operace je tezsi implementovat
+
+** TODO?
+-misto representatives (pouzito pouze pri konstrukci automatu pri derivovani)
+udelat pmapAccumL, ze kazdy blok bude mapovan prave jednou a akumulator bude
+automat (budou se tam akumulovat cilove stavy, ktere jsem postavil)
+-rychly mappend pomoci radixoveho trideni
+
+* Regularni vyrazy
+-dva typy RE a Regex
+--Regex reprezentuje vyraz, ktery byl naparsovan
+--RE je vzdy v normalizovane podobe a je specialne urcen ke konstrukci DFA
+
+** TODO?
+-v typu RE u sjednoceni, pruniku, zretezeni nahradit seznam dvojici
+--vyhoda: odpadnou specialni pripady jako prazdny a jednoprvkovy seznam
+--nevyhoda: bude tezsi normalizace sjednoceni a pruniku, kde tridim regularni
+vyrazy v seznamu
+
+* Parser
+-pouzivam Parsec, nebot vysledny parser dava dobre chybove hlasky
+-navic se s tim snadno pracuje a snadno se to ladi
+
+** TODO?
+-syntax ala Perl 6
+
+* DFA automat
+-DFA pouzivam kvuli rychlosti
+-NFA s negaci, prunikem a pocitadly je take exponencialni
+-jedine, co si s tim vsim poradi v polynomialnim case a prostoru je
+dynamicke programovani, tam je ale prostor O(n^2), coz je pro dlouha slova
+smrtici
+
+** Reprezentace
+-jedno pole, kde kazda polozka pole reprezentuje jeden stav automatu (JE)
+-vice poli (kde co matchuje, s prechody, nejvyssi dosazitelna priorita...)
+--vyhoda: nektera mohou byt unboxed, ne kazdy algoritmus potrebuje upravovat
+vsechna pole, takze nektera mohou zustat beze zmen
+--nevyhoda: hur se s tim pracuje
+
+** Konstrukce
+-zde je cela rada moznosti
+-klasicky postup reg. vyr. -- Glushkov/Thmopson --> NFA -- podmnoziny --> DFA
+vytvari automaty s hodne stavy
+-(JE) konstrukce reg. vyr. -- derivovani (Brzozowski) --> DFA udela casto
+temer minimalni automat
+-navic Thompson a Glushkov si tezko poradi s doplnkem a prunikem
+-konstrukci NFA pomoci parcialnich derivaci a pak do NFA jsem nezkousel
+
+* Obecne
+-paralelismus
+
+** Vstupni usporadni
+-moznost zadavat usporadani pravidel i pomoci nerovnosti
+-moznost zadat vice ruznych usporadani
+-algoritmy v programu jsou na to prizpusobeny, takze s tim neni teoreticky
+problem, ale je to vubec k necemu?
