@@ -144,6 +144,7 @@ intersect = mergeWith (\a b -> if a == 0 || b == 0 then 0 else 1)
 -- | Represents partition of the alphabet with symbols of type @s@.
 data PartitionL s = Cons !BlockId !s (PartitionL s)
                   | Nil
+                  deriving (Eq, Ord)
 
 -- | Checks whether list can be converted to partition by 'fromList'.
 check :: (Ord s, Bounded s) => [(BlockId, s)] -> Bool
