@@ -2,10 +2,11 @@
 module Main where
 
 import Data.Array
+import Data.Maybe (catMaybes)
 import System.Environment (getArgs)
 import Core.Partition (PartitionL)
 import Core.RE ()
-import Core.Rule ()
+import Core.Rule
 import Core.DFA
 import FrontEnd.RuleParser
 import Control.Applicative ((<$>))
@@ -21,10 +22,15 @@ main = do rulesFile <- head <$> getArgs
               putStrLn "Parsing OK"
               -- Build Brzozowski's automaton and print number of its states.
               putStrLn "Starting Brzozowski's construction..."
-              let dfa = buildDFA $ map pRule (rules :: [ParsedRule PartitionL])
+              let rules' = map pRule (rules :: [ParsedRule PartitionL])
+              let dfa = updateReachablePrio $ updateWhatMatches rules'
+                                            $ buildDFA rules'
               let numOfStates = succ $ snd $ bounds $ dfa
               putStrLn $ "Automaton has " ++ show numOfStates ++ " states"
-
+              let reachableSum = sum $ map (\(Pr p) -> p) $ catMaybes
+                                     $ map sdReachablePrio
+                                     $ elems dfa
+              putStrLn $ "Sum of reachable priorities " ++ show reachableSum
 
 {-
 import FrontEnd.RuleParser (parseRules)

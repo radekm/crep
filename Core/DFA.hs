@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleContexts #-}
+
 -- |
 -- Module    : Core.DFA
 -- Copyright : (c) Radek Micek 2009, 2010
@@ -12,6 +14,8 @@ module Core.DFA
        , State
        , StateData(..)
        , Transitions
+       , updateWhatMatches
+       , updateReachablePrio
        , buildDFA
        ) where
 
@@ -25,11 +29,15 @@ import Data.Maybe (fromJust)
 import Data.List (mapAccumL)
 import Core.Partition
 import Data.Monoid (Monoid)
+import Data.Graph (SCC(..), stronglyConnCompR)
 
 infixl 9 !!!
 
-(!!!) :: UArray Int Int -> Int -> Int
+(!!!) :: (U.IArray UArray b, Ix a) => UArray a b -> a -> b
 (!!!) = (U.!)
+
+(///) :: (U.IArray UArray b, Ix a) => UArray a b -> [(a, b)] -> UArray a b
+(///) = (U.//)
 
 data StateData p a
   = SD {
@@ -55,6 +63,81 @@ type DFA p a = Array State (StateData p a)
 
 -- | State number.
 type State = Int
+
+-- ---------------------------------------------------------------------------
+--
+
+-- | Updates 'sdMatches' and 'sdMatchPrio' of the given automaton.
+--
+--   Parameter @rules@ is same list of the rules which was used when
+--   building automaton.
+updateWhatMatches :: [Rule p a] -> DFA p a -> DFA p a
+updateWhatMatches rules dfa
+  = listArray (bounds dfa) $ map updateSD $ elems dfa
+  where
+    ru2Prio :: UArray RuNum Priority
+    ru2Prio = U.listArray (RuN 0, RuN $ pred $ length rules) $
+                          map (\(Rule _ p _ _ _) -> p) rules
+    updateSD (SD matches _ rp ts)
+      = case matches of
+          [] -> SD [] Nothing rp ts
+          _  -> SD newMatches (Just maxPrio) rp ts
+      where
+        maxPrio    = maximum $ map (ru2Prio!!!) matches
+        newMatches = filter ((== maxPrio) . (ru2Prio!!!)) matches
+
+-- | Updates 'sReachablePrio' of the given automaton.
+--
+--   'sdMatchPrio' must be already updated.
+updateReachablePrio :: Pa p a => DFA p a -> DFA p a
+updateReachablePrio dfa = array (bounds dfa) $ map updateState $ assocs dfa
+  where
+    updateState (st, sd)
+      = (st, sd {sdReachablePrio = toMPrio $ finReachablePrioArr!!!st})
+    finReachablePrioArr = foldl maxOfSCC initReachablePrioArr $ scc dfa
+
+    -- Maps each state to the highest priority which can be reached
+    -- by non-empty word. @minBound@ means that no priority can be reached.
+    initReachablePrioArr :: UArray State Priority
+    initReachablePrioArr = U.accumArray const minBound (bounds dfa) []
+
+    -- Adds states from one strongly connected component into the map
+    -- of reachable priorities.
+    maxOfSCC :: UArray State Priority
+             -> SCC (Maybe Priority, State, Neighbours)
+             -> UArray State Priority
+    maxOfSCC reachablePrioArr (CyclicSCC xs)
+      = reachablePrioArr /// zip (map (\(_, st, _) -> st) xs) (repeat maxPrio)
+      where
+        maxPrio = maximum $ map maxOfState xs
+        maxOfState (pr, _, ns) = max (fromMPrio pr)
+                                     (maxOfNeighbours reachablePrioArr ns)
+    maxOfSCC reachablePrioArr (AcyclicSCC (_, st, ns))
+      = reachablePrioArr /// [(st, maxOfNeighbours reachablePrioArr ns)]
+
+    maxOfNeighbours :: UArray State Priority -> Neighbours -> Priority
+    maxOfNeighbours reachablePrioArr neighbours
+      = maximum $ map maxOfNeighbour neighbours
+      where
+        maxOfNeighbour nst = max (fromMPrio $ sdMatchPrio $ dfa!nst)
+                                 (reachablePrioArr!!!nst)
+
+    fromMPrio (Just p) = p
+    fromMPrio _        = minBound
+
+    toMPrio p
+      | p /= minBound = Just p
+      | otherwise     = Nothing
+
+type Neighbours = [State]
+
+-- | Returns strongly connected components topologically sorted.
+scc :: Pa p a => DFA p a -> [SCC (Maybe Priority, State, Neighbours)]
+scc = stronglyConnCompR . map convertState . assocs
+  where
+    convertState (i, sd)
+      = (sdMatchPrio sd, i, map fst $ representatives $ sdTrans sd)
+
 
 -- ---------------------------------------------------------------------------
 -- DFA construction Brzozowski
