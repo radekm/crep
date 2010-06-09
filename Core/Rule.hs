@@ -11,6 +11,7 @@
 module Core.Rule where
 
 import Core.Regex
+import Data.Array.Unboxed
 
 -- | Rule consists of name, priority, flag for preferred length of selected
 --   parts, regular expression and substitution.
@@ -21,7 +22,7 @@ type Name = String
 
 -- | Priority of the rule.
 newtype Priority = Pr Int
-                 deriving (Eq, Ord, Show)
+                 deriving (Eq, Ord, Show, Bounded, IArray UArray)
 
 -- | Flag whether the rule prefers shortest or longest parts.
 data PrefLen = Shortest | Longest
@@ -39,4 +40,4 @@ data SubstTerm a = TConst [a]
 
 -- | Number of the rule.
 newtype RuNum = RuN Int
-              deriving (Eq, Ord, Show, Enum)
+              deriving (Eq, Ord, Show, Enum, Ix)
