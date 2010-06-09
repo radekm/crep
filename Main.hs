@@ -23,8 +23,9 @@ main = do rulesFile <- head <$> getArgs
               -- Build Brzozowski's automaton and print number of its states.
               putStrLn "Starting Brzozowski's construction..."
               let rules' = map pRule (rules :: [ParsedRule PartitionL])
-              let dfa = updateReachablePrio $ updateWhatMatches rules'
-                                            $ buildDFA rules'
+              let dfa = kMinimize maxBound $ updateReachablePrio
+                                           $ updateWhatMatches rules'
+                                           $ buildDFA rules'
               let numOfStates = succ $ snd $ bounds $ dfa
               putStrLn $ "Automaton has " ++ show numOfStates ++ " states"
               let reachableSum = sum $ map (\(Pr p) -> p) $ catMaybes

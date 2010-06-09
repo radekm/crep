@@ -16,6 +16,7 @@ module Core.DFA
        , Transitions
        , updateWhatMatches
        , updateReachablePrio
+       , kMinimize
        , buildDFA
        ) where
 
@@ -30,6 +31,8 @@ import Data.List (mapAccumL)
 import Core.Partition
 import Data.Monoid (Monoid)
 import Data.Graph (SCC(..), stronglyConnCompR)
+import Control.Arrow (second)
+import Data.List (groupBy, sortBy)
 
 infixl 9 !!!
 
@@ -65,7 +68,7 @@ type DFA p a = Array State (StateData p a)
 type State = Int
 
 -- ---------------------------------------------------------------------------
---
+-- Computation of the highest reachable priority and highest matching rule
 
 -- | Updates 'sdMatches' and 'sdMatchPrio' of the given automaton.
 --
@@ -138,6 +141,104 @@ scc = stronglyConnCompR . map convertState . assocs
     convertState (i, sd)
       = (sdMatchPrio sd, i, map fst $ representatives $ sdTrans sd)
 
+-- ---------------------------------------------------------------------------
+-- Automaton minimization
+
+-- | Moore's minimization.
+kMinimize :: (Ord (p a), Pa p a) => Int -> DFA p a -> DFA p a
+kMinimize k dfa = mergeEquivStates (kthEquivalence k dfa) dfa
+
+-- | Equivalence class.
+type EqClass = [State]
+
+-- | Equivalence is a list of equivalence classes.
+type Equivalence = [EqClass]
+
+-- | Maps each state to equivalence class id.
+type EqArray = UArray State EqClsId
+
+-- | Id of quivalence class.
+type EqClsId = Int
+
+-- | States are grouped by 'sdMatches'.
+initialEquivalence :: DFA p a -> Equivalence
+initialEquivalence = map (map fst) . sortAndGroupBySnd
+                                   . map (second sdMatches) . assocs
+
+-- | Refine equivalence.
+--
+--   If not refined then returned equivalence is same as original equivalence.
+nextEquivalence :: (Ord (p a), Pa p a)
+                => Equivalence -> DFA p a -> Equivalence
+nextEquivalence eq dfa = concatMap refineEqClass eq
+  where
+    -- IMPORTANT: Order of states is preserved when class is not subdidived.
+    refineEqClass :: EqClass -> [[State]]
+    refineEqClass = map (map fst) . sortAndGroupBySnd
+                                  . map (second $ pmap (eqArr!!!))
+                                  -- Pairs (state, transitions).
+                                  . map (\st -> (st, sdTrans $ dfa!st))
+
+    eqArr = equivalenceToEqArray (succ $ snd $ bounds dfa) eq
+
+-- | If @k@ is negative number we loop until equivalence is refined.
+kthEquivalence :: (Ord (p a), Pa p a) => Int -> DFA p a -> Equivalence
+kthEquivalence k dfa = iter 0 (initialEquivalence dfa)
+  where
+    -- @equiv@ is @nIter@-th equivalence
+    iter nIter equiv
+      | nIter == k         = equiv
+      | equiv == nextEquiv = equiv
+      | otherwise          = iter (succ nIter) nextEquiv
+      where
+        nextEquiv = nextEquivalence equiv dfa
+
+-- | Every equivalence class is replaced by one state.
+mergeEquivStates :: Pa p a => Equivalence -> DFA p a -> DFA p a
+mergeEquivStates eq dfa = removeNotGivenStates reprStates newDFA
+  where
+    -- Each eq. class is represented by one state.
+    reprStates = map head eq
+
+    -- Transitions of @reprStates@ lead only to other @reprStates@.
+    newDFA = dfa // map (\st -> (st, updateTransitions stateToReprState
+                                       $ dfa!st))
+                        reprStates
+
+    stateToReprState
+      = U.array (bounds dfa)
+                (concatMap (\eqCls -> zip eqCls (repeat $ head eqCls)) eq)
+
+-- | States not present in the given list will be removed.
+removeNotGivenStates :: Pa p a => [State] -> DFA p a -> DFA p a
+removeNotGivenStates states dfa
+  = listArray (0, pred $ length states)
+              (map (updateTransitions oldToNewSt . (dfa!)) states)
+  where
+    oldToNewSt :: UArray State State
+    oldToNewSt = U.array (bounds dfa) (zip states [0..])
+
+-- | Maps old state numbers in transition table to new state numbers.
+updateTransitions ::Pa p a
+                  =>  UArray State State -> StateData p a -> StateData p a
+updateTransitions oldToNewStMap (SD m mp rp ts)
+  = SD m mp rp $ pmap (oldToNewStMap!!!) ts
+
+-- | Conversion between representations of equivalence.
+equivalenceToEqArray :: Int -> Equivalence -> EqArray
+equivalenceToEqArray nStates eq
+  = U.array (0, pred nStates) $ concat $ stateId
+  where
+    stateId :: [[(State, EqClsId)]]
+    stateId = zipWith (\states clsId -> zip states $ repeat clsId)
+                      eq [0..]
+
+-- | Sorts the list of pairs by the second value. Then groups values
+--   in the list by the second value.
+sortAndGroupBySnd :: Ord b => [(a, b)] -> [[(a, b)]]
+sortAndGroupBySnd = groupBy (co2 (==) snd) . sortBy (co2 compare snd)
+  where
+    co2 f t a b = f (t a) (t b)
 
 -- ---------------------------------------------------------------------------
 -- DFA construction Brzozowski
