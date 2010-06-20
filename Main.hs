@@ -9,6 +9,7 @@ import Core.RE ()
 import Core.Rule
 import Core.DFA
 import FrontEnd.RuleParser
+import Core.PartialOrder ()
 import Control.Applicative ((<$>))
 
 main :: IO ()

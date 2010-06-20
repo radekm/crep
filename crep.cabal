@@ -19,6 +19,7 @@ executable crep
   main-is: Main.hs
   other-modules:
     Core.DFA
+    Core.PartialOrder
     Core.Partition
     Core.RE
     Core.Regex
