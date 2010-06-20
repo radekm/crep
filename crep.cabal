@@ -8,7 +8,9 @@ maintainer: Radek Micek <radek.micek@gmail.com>
 stability: experimental
 category: Text
 synopsis: Competing regular expressions
-extra-source-files: tests/run.hs
+extra-source-files:
+  tests/run.hs
+  docs/notes-cs.org
 description: Text processing tool
 tested-with: GHC == 6.12.1
 cabal-version: >= 1.4

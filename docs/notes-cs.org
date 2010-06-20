@@ -22,6 +22,7 @@
 -misto representatives (pouzito pouze pri konstrukci automatu pri derivovani)
 udelat pmapAccumL, ze kazdy blok bude mapovan prave jednou a akumulator bude
 automat (budou se tam akumulovat cilove stavy, ktere jsem postavil)
+--nyni je reprezentatives pouzita i pri hledani silne souvislych komponent
 -rychly mappend pomoci radixoveho trideni
 
 * Regularni vyrazy
@@ -64,6 +65,18 @@ vytvari automaty s hodne stavy
 temer minimalni automat
 -navic Thompson a Glushkov si tezko poradi s doplnkem a prunikem
 -konstrukci NFA pomoci parcialnich derivaci a pak do NFA jsem nezkousel
+
+** Minimalizace
+-pouzivam Mooruv algoritmus pracujici v prumeru v case O(n*log(n))
+--vyhody: snadna implementace, pocita i DFCA (tedy minimalni automat, ktery
+je ekvivalentni s puvodnim na slovech delky <= k)
+-mam ciste funkcionalni implementaci
+(lze predpokladat, ze iteraci bude malo, protoze automat je temer minimalni
+diky Brzozowskeho konstrukci, takze ciste funkcionalni implementace nevadi)
+-dalsi moznosti byl Hopcroftuv algoritmus pracujici v case O(n*log(n))
+--nevyhody: slozitejsi na implementaci, v praxi na "malych" automatech
+je casto pomalejsi nez ostatni algoritmy
+-pro klasickou Brzozowskeho minimalizaci nemam: NFA, podmnozinovou konstrukci
 
 * Obecne
 -paralelismus
