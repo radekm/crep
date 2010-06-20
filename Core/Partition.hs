@@ -155,7 +155,7 @@ check ((b, s):(b', s'):xs) = b /= b' && s < s' && check ((b', s'):xs)
 instance (Ord s, Bounded s) => Pa PartitionL s where
   fromList pa
     | check pa  = fromL pa
-    | otherwise = error "bad input"
+    | otherwise = error "Core.Partition.fromList (PartitionL): bad input"
     where
       fromL ((b, s):xs) = Cons b s $ fromL xs
       fromL []          = Nil
@@ -166,7 +166,7 @@ instance (Ord s, Bounded s) => Pa PartitionL s where
   getBlock symbol (Cons b s xs)
     | symbol <= s = b
     | otherwise   = getBlock symbol xs
-  getBlock _ Nil = error "bad"
+  getBlock _ Nil = error "Core.Partition.getBlock (PartitionL): bad input"
 
   mergeWith op xss'@(Cons block _ _) yss'@(Cons block' _ _)
     = merge (block `op` block') undefined {- prevSymb can be any value -}
@@ -186,10 +186,11 @@ instance (Ord s, Bounded s) => Pa PartitionL s where
       merge prevBlock prevSymb Nil Nil
         = Cons prevBlock prevSymb Nil
       merge _ _ _ _
-        = error "bad partition"
-  mergeWith _ _ _ = error "merge no intervals"
+        = error "Core.Partition.mergeWith (PartitionL): bad input"
+  mergeWith _ _ _
+    = error "Core.Partition.mergeWith (PartitionL): no intervals"
 
-  pmap _ Nil = error "bad partition"
+  pmap _ Nil = error "Core.Partition.pmap (PartitionL): bad input"
   pmap f (Cons b' s' xs') = map' b' s' xs'
     where
       map' prevBlock prevSymb (Cons b s xs)
@@ -212,7 +213,7 @@ instance (Ord s, Bounded s) => Monoid (PartitionL s) where
         where
           (newBlock, newDict) = translate (b, b') dict
       isect _ Nil Nil = Nil
-      isect _ _ _     = error "bad partition"
+      isect _ _ _     = error "mappend (PartitionL): bad input"
 
       translate k dict@(ddata, size)
         = case lookup k ddata of
