@@ -14,7 +14,7 @@ module Core.DFA
        , State
        , StateData(..)
        , Transitions
---     , updateWhatMatches
+       , updateWhatMatches
        , updateReachablePrio
        , kMinimize
        , buildDFA
@@ -29,12 +29,10 @@ import Core.RE
 import Data.Maybe (fromJust)
 import Data.List (mapAccumL)
 import Core.Partition
-import Core.PartialOrder
 import Data.Monoid (Monoid)
 import Data.Graph (SCC(..), stronglyConnCompR)
 import Control.Arrow (second)
 import Data.List (groupBy, sortBy)
-import Data.Bits (setBit)
 
 infixl 9 !!!
 
@@ -46,9 +44,9 @@ infixl 9 !!!
 
 data StateData p a
   = SD {
-         -- | Rule with number @n@ matches iff @n@-th bit is set.
-         sdMatches :: Bitmask
-         -- | Priority of the maximal rule whiches match in this state.
+         -- | List of the rules which match in this state.
+         sdMatches :: [RuNum]
+         -- | Priority of the maximal rule which match in this state.
        , sdMatchPrio :: Maybe Priority
          -- | Priority of the maximal rule which is reachable from this state
          --   by some non-empty word.
@@ -72,7 +70,28 @@ type State = Int
 -- ---------------------------------------------------------------------------
 -- Computation of the highest reachable priority and highest matching rule
 
--- | Updates 'sdReachablePrio' of the given automaton.
+-- | Updates 'sdMatches' and 'sdMatchPrio' of the given automaton.
+--
+--   Parameter @rules@ is same list of the rules which was used when
+--   building automaton.
+updateWhatMatches :: [Rule p a] -> DFA p a -> DFA p a
+updateWhatMatches rules dfa
+  = listArray (bounds dfa) $ map updateSD $ elems dfa
+  where
+    ru2Prio :: UArray RuNum Priority
+    ru2Prio = U.listArray (RuN 0, RuN $ pred $ length rules) $
+                          map (\(Rule _ p _ _ _) -> p) rules
+    updateSD (SD matches _ rp ts)
+      = case matches of
+          [] -> SD [] Nothing rp ts
+          _  -> SD newMatches (Just maxPrio) rp ts
+      where
+        maxPrio    = maximum $ map (ru2Prio!!!) matches
+        newMatches = filter ((== maxPrio) . (ru2Prio!!!)) matches
+
+-- | Updates 'sReachablePrio' of the given automaton.
+--
+--   'sdMatchPrio' must be already updated.
 updateReachablePrio :: Pa p a => DFA p a -> DFA p a
 updateReachablePrio dfa = array (bounds dfa) $ map updateState $ assocs dfa
   where
@@ -243,9 +262,9 @@ data BDFA p a
 
 -- | Builds automaton recognizing given rules.
 buildDFA :: (Monoid (p a), Ord (p a), Pa p a) => [Rule p a] -> DFA p a
-buildDFA rules = toDFA $ fst $ constructState emptyBDFA prios reList
+buildDFA = toDFA . fst . constructState emptyBDFA . reList
   where
-    (prios, reList) = unzip $ map (\(Rule _ p _ re _) -> (p, toRE re)) rules
+    reList     = map (\(Rule _ _ _ re _) -> toRE re)
     emptyBDFA  = BDFA M.empty M.empty []
     toDFA bdfa = array (0, pred $ M.size $ bVector2State bdfa) (bStates bdfa)
 
@@ -270,11 +289,11 @@ addVector vect m = case M.insertLookupWithKey f key newVal m of
     key    = vect
     newVal = M.size m
 
--- | Function @'constructState' bdfa prios reList@ returns new automaton with
+-- | Function @'constructState' bdfa reList@ returns new automaton with
 --   state given by @reList@.
 constructState :: (Monoid (p a), Ord (p a), Pa p a)
-               => BDFA p a -> [Priority] -> [RE p a] -> (BDFA p a, State)
-constructState bdfa prios reList
+               => BDFA p a -> [RE p a] -> (BDFA p a, State)
+constructState bdfa reList
   = case maybeVect2State of
       Nothing
         -> (bdfa, st)  -- State is already in automaton.
@@ -287,16 +306,11 @@ constructState bdfa prios reList
     (st, maybeVect2State) = addVector vector (bVector2State bdfa)
 
     bdfa' = BDFA regex2Num (fromJust maybeVect2State) (bStates bdfa)
-    (transitions, bdfa'') = buildTransitions prios reList bdfa'
-    stateData = SD whatMatches matchPrio Nothing transitions
-    whatMatches = foldl setBit 0 $ map fst $ filter snd $ zip [0..] ns
-    matchPrio = safeMaximum $ map fst $ filter snd $ zip prios ns
-      where
-        safeMaximum [] = Nothing
-        safeMaximum xs = Just $ maximum xs
-    ns = map nullable reList
+    (transitions, bdfa'') = buildTransitions reList bdfa'
+    stateData = SD whatMatches Nothing Nothing transitions
+    whatMatches = map fst $ filter snd $ zip [RuN 0..] $ map nullable reList
 
--- | Function @'buildTransitions' prios reList bdfa@ returns transitions
+-- | Function @'buildTransitions' reList bdfa@ returns transitions
 --   for the state given by @reList@ and new automaton @bdfa'@ where all
 --   states reachable from state given by @reList@ are constructed.
 --
@@ -304,18 +318,15 @@ constructState bdfa prios reList
 --   expressions in @reList@ are also in @'bRegex2Num' bdfa@ and vector
 --   representing state is in @'bVector2Num' bdfa@.
 buildTransitions :: (Monoid (p a), Ord (p a), Pa p a)
-                 => [Priority]
-                 -> [RE p a]
-                 -> BDFA p a
-                 -> (Transitions p a, BDFA p a)
-buildTransitions prios reList bdfa = (transitions, bdfa')
+                 => [RE p a] -> BDFA p a -> (Transitions p a, BDFA p a)
+buildTransitions reList bdfa = (transitions, bdfa')
   where
     pa = partitionAlphabetByDerivativesMany reList
     (blocks, symbols) = unzip $ representatives pa
     -- @states@ is list with destination states.
-    (bdfa', states) = mapAccumL (\dfa s -> constructState dfa prios
-                                             $ map (derivative s) reList)
-                                bdfa symbols
+    (bdfa', states)
+      = mapAccumL (\dfa s -> constructState dfa $ map (derivative s) reList)
+                  bdfa symbols
     block2State :: UArray BlockId State
     block2State = U.array (0, maximum blocks) (zip blocks states)
     -- Replace block ids by states.
