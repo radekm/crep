@@ -25,7 +25,6 @@ main = do rulesFile <- head <$> getArgs
               putStrLn "Starting Brzozowski's construction..."
               let rules' = map pRule (rules :: [ParsedRule PartitionL])
               let dfa = kMinimize maxBound $ updateReachablePrio
-                                           $ updateWhatMatches rules'
                                            $ buildDFA rules'
               let numOfStates = succ $ snd $ bounds $ dfa
               putStrLn $ "Automaton has " ++ show numOfStates ++ " states"
