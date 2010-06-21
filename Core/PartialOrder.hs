@@ -13,13 +13,19 @@ import Core.Rule
 import Data.List (groupBy, sortBy)
 import Data.Bits ((.|.), setBit, testBit)
 
--- | Partial order @po@ of rules is represented as array of bitmaps.
+type Bitmask = Integer
+
+-- | Function @'idx' bitmask n@ returns whether @n@-th bit is set.
+idx :: Bitmask -> RuNum -> Bool
+idx bm (RuN n) = bm `testBit` n
+
+-- | Partial order @po@ of rules is represented as array of bitmasks.
 --   @a@-th bit of @po!b@ is set iff rule @a@ is greater than rule @b@.
-type POrder = Array RuNum Integer
+type POrder = Array RuNum Bitmask
 
 -- | Function @'isGreater' a b po@ returns whether @a > b@.
 isGreater :: RuNum -> RuNum -> POrder -> Bool
-isGreater (RuN a) b po = po!b `testBit` a
+isGreater a b po = po!b `idx` a
 
 -- | Creates partial order from given rules.
 fromRules :: [Rule p a] -> POrder
