@@ -13,11 +13,14 @@ module Core.Matcher
        (
          Matcher(..)
        , Length
+       , BinSearchMatcher(..)
+       , BTransitionTab
        , CompAlphabetMatcher(..)
        , TranslationTable
        , TransitionTable
        , TabIdx
        , TSymbol
+       , toBinSearchMatcher
        , toCompAlphabetMatcher
        ) where
 
@@ -40,29 +43,103 @@ type Length = Int
 class Matcher m where
   findWords :: m -> String -> [(RuNum, [Length])]
 
-instance Matcher (CompAlphabetMatcher Char) where
-  findWords cam = map (\xs -> (snd $ head xs, map fst xs)) .
-                  groupBy (\a b -> snd a == snd b) .
-                  sortBy (\a b -> snd a `compare` snd b) .
-                  concat .
-                  runDFA 0 0 Nothing
+instance Matcher (BinSearchMatcher Char) where
+  findWords bsm
+    = findWordsGeneric fWhatMatches fMatchPrio fReachablePrio fNextState
     where
-      runDFA :: State {- old state -}
-             -> Length
-             -> Maybe Priority
-             -> String
-             -> [[(Length, RuNum)]]
-      runDFA _ _ _ [] = []
-      runDFA st len maxPrio (x:xs)
-        | reachablePrio < maxPrio' = [whatMatches]
-        | otherwise = whatMatches:runDFA newState (succ len) maxPrio' xs
+      fWhatMatches       = (bsmWhatMatches bsm!)
+      fMatchPrio         = (bsmMatchPrio bsm!)
+      fReachablePrio     = (bsmReachablePrio bsm!)
+      fNextState st symb = ttStates !!! (binSearch lo hi symb ttSymbols)
         where
-          whatMatches = zip (repeat len) $ camWhatMatches cam ! newState
-          reachablePrio = camReachablePrio cam ! st
-          maxPrio' = maxPrio `max` (camMatchPrio cam ! st)
-          tsymbol = (camTranslationTabs cam !
-                     (camSymbolTranslation cam !!! st)) !!! x
-          newState = (camTransitionTabs cam ! st) !!! tsymbol
+          (ttSymbols, ttStates) = bsmTransitionTabs bsm ! st
+          (lo, hi)              = U.bounds ttSymbols
+
+instance Matcher (CompAlphabetMatcher Char) where
+  findWords cam
+    = findWordsGeneric fWhatMatches fMatchPrio fReachablePrio fNextState
+    where
+      fWhatMatches       = (camWhatMatches cam!)
+      fMatchPrio         = (camMatchPrio cam!)
+      fReachablePrio     = (camReachablePrio cam!)
+      fNextState st symb = (camTransitionTabs cam ! st) !!! translSymb
+        where
+          translTabIdx = camSymbolTranslation cam !!! st
+          translTab    = camTranslationTabs cam ! translTabIdx
+          translSymb   = translTab !!! symb
+
+findWordsGeneric :: (State -> [RuNum])
+                 -> (State -> Maybe Priority)
+                 -> (State -> Maybe Priority)
+                 -> (State -> Char -> State)
+                 -> String
+                 -> [(RuNum, [Length])]
+findWordsGeneric fWhatMatches fMatchPrio fReachablePrio fNextState
+  = map (\xs -> (snd $ head xs, map fst xs)) .
+    groupBy (\a b -> snd a == snd b) .
+    sortBy (\a b -> snd a `compare` snd b) .
+    concat .
+    runDFA 0 1 Nothing
+  where
+    runDFA :: State {- old state -}
+           -> Length
+           -> Maybe Priority
+           -> String
+           -> [[(Length, RuNum)]]
+    runDFA _ _ _ [] = []
+    runDFA st len maxPrio (symb:symbols)
+      | reachablePrio < maxPrio' = [whatMatches]
+      | otherwise = whatMatches:runDFA newState (succ len) maxPrio' symbols
+      where
+        whatMatches = zip (repeat len) $ fWhatMatches newState
+        reachablePrio = fReachablePrio st
+        maxPrio' = maxPrio `max` (fMatchPrio st)
+        newState = fNextState st symb
+
+-- | Function @'binSearch' lo hi symb arr@ returns index of the smallest
+--   element @el@ such that @symb <= el@.
+--
+--   Element @el@ must exist.
+binSearch :: (U.IArray UArray a, Ord a)
+          => Int -> Int -> a -> UArray Int a -> Int
+binSearch lo hi symb arr
+  | lo == hi         = lo
+  -- Element is too small.
+  | arr!!!mid < symb = binSearch (mid+1) hi  symb arr
+  | otherwise        = binSearch lo      mid symb arr
+  where
+    mid  = (lo + hi) `div` 2
+
+-- --------------------------------------------------------------------------
+
+-- | Representation of transition table. The first array is search by binary
+--   search and the second array contains next state.
+type BTransitionTab a = (UArray Int a, UArray Int State)
+
+data BinSearchMatcher a
+  = BSM {
+        -- | Transition tables.
+          bsmTransitionTabs :: Array State (BTransitionTab a)
+        -- | Which rules match.
+        , bsmWhatMatches :: Array State [RuNum]
+        -- | Highest priority which matches.
+        , bsmMatchPrio :: Array State (Maybe Priority)
+        -- | Highest priority reachable by some nonempty word.
+        , bsmReachablePrio :: Array State (Maybe Priority)
+        }
+
+toBinSearchMatcher :: (U.IArray UArray a, Pa p a)
+                   => DFA p a -> BinSearchMatcher a
+toBinSearchMatcher dfa
+  = BSM (fmap (listsToTransTab . unzip . toList . sdTrans) dfa)
+        (fmap sdMatches dfa)
+        (fmap sdMatchPrio dfa)
+        (fmap sdReachablePrio dfa)
+  where
+    listsToTransTab (sts, symbols) = (U.listArray bnds symbols,
+                                      U.listArray bnds sts)
+      where
+        bnds = (0, pred $ length symbols)
 
 -- ---------------------------------------------------------------------------
 -- Alphabet compression.
