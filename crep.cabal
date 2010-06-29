@@ -21,6 +21,7 @@ executable crep
   main-is: Main.hs
   other-modules:
     Core.DFA
+    Core.Matcher
     Core.PartialOrder
     Core.Partition
     Core.RE

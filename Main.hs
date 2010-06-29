@@ -1,16 +1,24 @@
-
+{-# LANGUAGE FlexibleContexts #-}
 module Main where
 
 import Data.Array
+import Data.Array.Unboxed (UArray)
+import qualified Data.Array.Unboxed as U
 import Data.Maybe (catMaybes)
 import System.Environment (getArgs)
 import Core.Partition (PartitionL)
 import Core.RE ()
 import Core.Rule
 import Core.DFA
+import Core.Matcher
 import FrontEnd.RuleParser
 import Core.PartialOrder ()
 import Control.Applicative ((<$>))
+
+infixl 9 !!!
+
+(!!!) :: (U.IArray UArray b, Ix a) => UArray a b -> a -> b
+(!!!) = (U.!)
 
 main :: IO ()
 main = do rulesFile <- head <$> getArgs
@@ -27,12 +35,16 @@ main = do rulesFile <- head <$> getArgs
               let dfa = kMinimize maxBound $ updateReachablePrio
                                            $ updateWhatMatches rules'
                                            $ buildDFA rules'
+                  matcher = toCompAlphabetMatcher 5 {- alpa partitions -} dfa
               let numOfStates = succ $ snd $ bounds $ dfa
               putStrLn $ "Automaton has " ++ show numOfStates ++ " states"
               let reachableSum = sum $ map (\(Pr p) -> p) $ catMaybes
                                      $ map sdReachablePrio
                                      $ elems dfa
               putStrLn $ "Sum of reachable priorities " ++ show reachableSum
+--            putStrLn $ show $ camTranslationTabs matcher ! 1 !!! 'a'
+              putStrLn $ show $ findWords matcher "ab"
+--            putStrLn $ show $ elems $ camWhatMatches $ matcher
 
 {-
 import FrontEnd.RuleParser (parseRules)

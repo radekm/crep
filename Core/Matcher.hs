@@ -1,0 +1,196 @@
+{-# LANGUAGE FlexibleContexts,
+             FlexibleInstances #-}
+
+-- |
+-- Module    : Core.Matcher
+-- Copyright : (c) Radek Micek 2010
+-- License   : BSD3
+-- Stability : experimental
+--
+-- Finds matching prefixes of the given string.
+--
+module Core.Matcher
+       (
+         Matcher(..)
+       , Length
+       , CompAlphabetMatcher(..)
+       , TranslationTable
+       , TransitionTable
+       , TabIdx
+       , TSymbol
+       , toCompAlphabetMatcher
+       ) where
+
+import Core.Rule
+import Core.DFA
+import Data.Array
+import Data.Array.Unboxed (UArray)
+import qualified Data.Array.Unboxed as U
+import Data.Monoid
+import Core.Partition
+import Data.List (partition, sortBy, groupBy)
+
+infixl 9 !!!
+
+(!!!) :: (U.IArray UArray b, Ix a) => UArray a b -> a -> b
+(!!!) = (U.!)
+
+type Length = Int
+
+class Matcher m where
+  findWords :: m -> String -> [(RuNum, [Length])]
+
+instance Matcher (CompAlphabetMatcher Char) where
+  findWords cam = map (\xs -> (snd $ head xs, map fst xs)) .
+                  groupBy (\a b -> snd a == snd b) .
+                  sortBy (\a b -> snd a `compare` snd b) .
+                  concat .
+                  runDFA 0 0 Nothing
+    where
+      runDFA :: State {- old state -}
+             -> Length
+             -> Maybe Priority
+             -> String
+             -> [[(Length, RuNum)]]
+      runDFA _ _ _ [] = []
+      runDFA st len maxPrio (x:xs)
+        | reachablePrio < maxPrio' = [whatMatches]
+        | otherwise = whatMatches:runDFA newState (succ len) maxPrio' xs
+        where
+          whatMatches = zip (repeat len) $ camWhatMatches cam ! newState
+          reachablePrio = camReachablePrio cam ! st
+          maxPrio' = maxPrio `max` (camMatchPrio cam ! st)
+          tsymbol = (camTranslationTabs cam !
+                     (camSymbolTranslation cam !!! st)) !!! x
+          newState = (camTransitionTabs cam ! st) !!! tsymbol
+
+-- ---------------------------------------------------------------------------
+-- Alphabet compression.
+--
+-- We use algorithm described in article
+-- "Efficient Signature Matching with Multiple Alphabet Compression Tables"
+-- by Shijin Kong, Randy Smith and Cristian Estan
+
+-- | Translation of symbols.
+type TranslationTable a = UArray a TSymbol
+
+-- | Transition table for one state.
+type TransitionTable = UArray TSymbol State
+
+-- | Index of translation table.
+type TabIdx = Int
+
+-- | Translated symbol.
+type TSymbol = Int
+
+data CompAlphabetMatcher a
+  = CAM {
+        -- | Tables for symbol translation.
+          camTranslationTabs :: Array TabIdx (TranslationTable a)
+        -- | Transition tables.
+        , camTransitionTabs  :: Array State TransitionTable
+        -- | Indices of the table for symbol translation.
+        , camSymbolTranslation :: UArray State TabIdx
+        -- | Which rules match.
+        , camWhatMatches :: Array State [RuNum]
+        -- | Highest priority which matches.
+        , camMatchPrio :: Array State (Maybe Priority)
+        -- | Highest priority reachable by some nonempty word.
+        , camReachablePrio :: Array State (Maybe Priority)
+        }
+
+type NewPartition = [State]
+type Rest = [State]
+
+-- | Converts automaton to matcher.
+toCompAlphabetMatcher :: (Enum a, Ix a, Pa p a, Monoid (p a))
+                      => Int -> DFA p a -> CompAlphabetMatcher a
+toCompAlphabetMatcher numPartitions dfa
+  = CAM (listArray (0, pred numPartitions) $ map fst tabs)
+        (array (bounds dfa) (concatMap snd tabs))
+        (U.array (bounds dfa) $ concatMap (\(i, sts) -> zip sts (repeat i))
+                              $ zip [0..] statePartition)
+        (fmap sdMatches dfa)
+        (fmap sdMatchPrio dfa)
+        (fmap sdReachablePrio dfa)
+  where
+    tabs = map (\states ->
+                  let (transl, invTransl) = mkTranslationTab states
+                      transitions = [ (s, mkTransitionTab s invTransl)
+                                    | s <- states]
+                  in (transl, transitions))
+               statePartition
+
+    -- Returns two tables (symbos -> tsymbol, tsymbol -> symbol).
+    mkTranslationTab states
+      = (U.array (minBound, maxBound) $
+                 concatMap (\(b, u, v) -> [(symbol, b) | symbol <- [u..v]]) $
+                           intervals,
+         U.array (0, lastTSymbol)
+                 -- Works only in GHC since indices may repeat.
+                 [(b, u) | (b, u, _) <- intervals])
+      where
+        intervals   = mkIntervals Nothing alphaPartit
+        alphaPartit = toList $ mconcat $ map (sdTrans . (dfa!)) states
+        lastTSymbol = fst $ maximum alphaPartit
+
+        mkIntervals Nothing []
+          = error "Core.Matcher.toCompAlphabetMatcher: bad partition"
+        mkIntervals (Just _) [] = []
+        mkIntervals Nothing ((b, s):xs)
+          = (b, minBound, s) :mkIntervals (Just s) xs
+        mkIntervals (Just prev) ((b, s):xs)
+          = (b, succ prev, s):mkIntervals (Just s) xs
+
+    mkTransitionTab st invTranslTab
+      = U.array (bounds invTranslTab)
+                [ (t, getBlock s $ sdTrans $ dfa!st)
+                | (t, s) <- U.assocs invTranslTab]
+
+    -- Each block in partition of states will have its translation table.
+    statePartition :: [[State]]
+    statePartition
+      = let (x, xs) =
+              until (\(_, ps) -> length ps + 1 >= numPartitions)
+                    (\(sts, ps) -> let (p, sts') = extractOnePartition sts
+                                   in (sts', p:ps))
+                    (dfaStates, [])
+        in x:xs
+
+    dfaStates = let (lo, hi) = bounds dfa in [lo..hi]
+
+    -- Size of partition <= (size of remaining) / 2
+    extractOnePartition :: [State] -> (NewPartition, Rest)
+    extractOnePartition remaining
+      = rmFromPartit (length remaining `div` 2) remaining []
+      where
+        rmFromPartit maxSize part rest
+          | length part > maxSize = let (cut, r) = statesCut part
+                                    in rmFromPartit maxSize r (cut ++ rest)
+          | otherwise             = (part, rest)
+
+        -- Returns (cut, rest).
+        statesCut states
+          -- Partition of the alphabet has only one block.
+          | null statePartitions = (states, [])
+          | otherwise            = snd $ minimum statePartitionsWithLen
+          where
+            -- [(symbol, symbol)]
+            pairsOfSymbs = combinations2 $ map snd
+                                         $ representatives
+                                         $ mconcat
+                                         $ map (sdTrans . (dfa!)) states
+            -- List of pairs (states where symbols behave differently, rest).
+            statePartitions = map (\p -> partition (behavesDifferently p)
+                                                   states)
+                                  pairsOfSymbs
+              where
+                behavesDifferently (a, b) state
+                  = let ts = sdTrans $ dfa!state
+                    in getBlock a ts /= getBlock b ts
+            statePartitionsWithLen = map (\a -> (length $ fst a, a))
+                                         statePartitions
+
+combinations2 :: [a] -> [(a, a)]
+combinations2 []     = []
+combinations2 (x:xs) = [(x, y) | y <- xs] ++ combinations2 xs
