@@ -1,4 +1,3 @@
-
 import System.Cmd (system)
 
 main :: IO ()
@@ -12,5 +11,4 @@ runTests ((desc, t):ts)
 runTests []     = return ()
 
 tests :: [(String, String)]
-tests = [("SymbSet", "TSymbSet")]
-
+tests = [("Partition", "Partition")]
