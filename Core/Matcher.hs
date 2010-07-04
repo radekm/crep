@@ -207,17 +207,9 @@ toCompAlphabetMatcher numPartitions dfa
                  -- Works only in GHC since indices may repeat.
                  [(b, u) | (b, u, _) <- intervals])
       where
-        intervals   = mkIntervals Nothing alphaPartit
-        alphaPartit = toList $ mconcat $ map (sdTrans . (dfa!)) states
-        lastTSymbol = fst $ maximum alphaPartit
-
-        mkIntervals Nothing []
-          = error "Core.Matcher.toCompAlphabetMatcher: bad partition"
-        mkIntervals (Just _) [] = []
-        mkIntervals Nothing ((b, s):xs)
-          = (b, minBound, s) :mkIntervals (Just s) xs
-        mkIntervals (Just prev) ((b, s):xs)
-          = (b, succ prev, s):mkIntervals (Just s) xs
+        intervals   = toIntervals alphaPartit
+        alphaPartit = mconcat $ map (sdTrans . (dfa!)) states
+        lastTSymbol = fst $ maximum (toList alphaPartit)
 
     mkTransitionTab st invTranslTab
       = U.array (bounds invTranslTab)

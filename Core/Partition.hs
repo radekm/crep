@@ -28,12 +28,14 @@ module Core.Partition
          Pa(..)
        , BlockId
        , PartitionL
+       , toIntervals
          -- * Symbol set
 
          -- | Symbol set is implemented in terms of partition.
          --   Symbol is in the set iff it is in the block with nonzero id.
        , Range(..)
        , fromRanges
+       , toRanges
        , empty
        , alphabet
        , member
@@ -95,6 +97,18 @@ class (Ord s, Bounded s) => Pa p s where
   pmap :: (BlockId -> BlockId) -> p s -> p s
   pmap f = mergeWith (\_ a -> f a) empty
 
+-- | Converts partition to list of triples (block, first symbol, last symbol).
+toIntervals :: (Enum s, Pa p s) => p s -> [(BlockId, s, s)]
+toIntervals = toIntervals' Nothing . toList
+  where
+    toIntervals' Nothing []
+      = error "Core.Partition.toIntervals: bad partition"
+    toIntervals' (Just _) [] = []
+    toIntervals' Nothing ((b, s):xs)
+      = (b, minBound, s) :toIntervals' (Just s) xs
+    toIntervals' (Just prev) ((b, s):xs)
+      = (b, succ prev, s):toIntervals' (Just s) xs
+
 -- ---------------------------------------------------------------------------
 -- Symbol set
 
@@ -113,6 +127,13 @@ fromRanges = foldl union empty . map (fromList . rangeToList)
                                          else [(1, y), (0, maxBound)]
       | y == maxBound = [(0, pred x), (1, maxBound)]
       | otherwise     = [(0, pred x), (1, y), (0, maxBound)]
+
+-- | Returns ranges with characters inside symbol set.
+toRanges :: (Enum s, Pa p s) => p s -> [Range s]
+toRanges = map intervalToRange . filterIntervals . toIntervals
+  where
+    filterIntervals             = filter (\(b, _, _) -> b /= 0)
+    intervalToRange (_, lo, hi) = Range lo hi
 
 -- | Empty symbol set.
 empty :: Pa p s => p s
