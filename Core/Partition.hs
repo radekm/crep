@@ -212,7 +212,7 @@ instance (Ord s, Bounded s) => Pa PartitionL s where
     = error "Core.Partition.mergeWith (PartitionL): no intervals"
 
   pmap _ Nil = error "Core.Partition.pmap (PartitionL): bad input"
-  pmap f (Cons b' s' xs') = map' b' s' xs'
+  pmap f (Cons b' s' xs') = map' (f b') s' xs'
     where
       map' prevBlock prevSymb (Cons b s xs)
         | prevBlock /= curBlock = Cons prevBlock prevSymb (map' curBlock s xs)
