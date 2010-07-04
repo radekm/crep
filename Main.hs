@@ -14,6 +14,7 @@ import Core.Matcher
 import FrontEnd.RuleParser
 import Core.PartialOrder ()
 import Control.Applicative ((<$>))
+import Core.UTF8 ()
 
 infixl 9 !!!
 

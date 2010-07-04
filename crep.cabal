@@ -27,6 +27,7 @@ executable crep
     Core.RE
     Core.Regex
     Core.Rule
+    Core.UTF8
     Core.Utils
     FrontEnd.Parsec
     FrontEnd.RegexParser
