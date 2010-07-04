@@ -83,192 +83,148 @@ t_toIntervals = "toIntervals" ~: test
        [(6, 0, 0), (5, 1, pred $ maxBound), (7, maxBound, maxBound)]
   ]
 
--- t_fromRanges
--- t_toRanges
+t_fromRanges = "fromRanges" ~:
+  [
+    fr [r 'a' 'a'] ~=? fr [r 'a' 'a', r 'a' 'a']
+  , fr [r 'a' 'b'] ~=? fr [r 'a' 'a', r 'b' 'b']
+  , fr [r 'a' 'd'] ~=? fr [r 'a' 'b', r 'c' 'd']
+  , fr [r 'a' 'e'] ~=? fr [r 'a' 'c', r 'b' 'e']
+  , fr [r 'a' 'e'] ~=? fr [r 'a' 'b', r 'b' 'b', r 'd' 'e', r 'c' 'c']
+  , fr [r 'c' 'd', r 'a' 'a'] ~=? fr [r 'a' 'a', r 'd' 'd', r 'c' 'c']
+  , fr [r 'a' 'g', r 'A' 'a', r 'c' 'd', r 'i' 'l', r 'm' 'z'] ~=?
+    fr [r 'A' 'g', r 'i' 'z']
+
+  , fr' [r 12 12] ~=? fr' [r 12 12, r 12 12]
+  , fr' [r 12 13] ~=? fr' [r 12 12, r 13 13]
+  , fr' [r 12 13] ~=? fr' [r 13 13, r 12 12]
+  , fr' [r 12 13] ~=? fr' [r 13 13, r 12 13]
+  , fr' [r 12 13] ~=? fr' [r 12 13, r 12 12]
+  , fr' [r 10 90] ~=? fr' [r 41 57, r 89 90, r 60 65, r 10 29, r 30 31
+                          ,r 80 88, r 66 79, r 32 40, r 58 59]
+  , fr' [r 12 16, r 95 95] ~=? fr' [r 14 15, r 95 95, r 12 13, r 16 16]
+  , fr' [r 12 16, r 95 95] ~=? fr' [r 12 15, r 95 95, r 12 16]
+  , alphabet' ~=? fr' [r 15 27, r 0 14, r 27 255]
+  , alphabet' ~=? fr' [r 15 27, r 0 15, r 28 maxBound]
+  , alphabet' ~=? fr' [r 15 27, r 0 14, r 28 30, r 31 43, r 42 255]
+  , fr' [r 0 10, r 35 45, r 243 255] ~=?
+    fr' [r 243 244, r 10 10, r 36 42, r 245 255, r 0 9, r 42 45, r 35 35]
+  ]
+  where
+    alphabet' = toList (alphabet :: PartitionL Word8)
+    fr  = toList . (fromRanges :: [Range Char]  -> PartitionL Char)
+    fr' = toList . (fromRanges :: [Range Word8] -> PartitionL Word8)
+    r   = Range
+
+t_toRanges = "toRanges" ~: test
+  [
+    [r 'a' 'a'] ~=? to (fr [r 'a' 'a'])
+  , [r 'a' 'b'] ~=? to (fr [r 'a' 'b'])
+  , [r 'a' 'b'] ~=? to (fr [r 'a' 'a', r 'b' 'b'])
+  , [r 'a' 'e'] ~=?
+    to (fr [r 'a' 'a', r 'd' 'd', r 'e' 'e', r 'c' 'c', r 'b' 'b'])
+  , [r 'F' 'M', r 'c' 'd'] ~=? to (fr [r 'c' 'd', r 'F' 'M'])
+  , let x = fr [r 'g' 'j', r '0' '8', r 'a' 'b', r 'c' 'd', r 'X' 'X']
+    in toList x ~=? toList (fr $ to x)
+
+  , [r 0 5, r 12 32, r 83 108] ~=?
+    to' (fr' [r 12 25, r 26 32, r 0 5, r 5 5, r 83 106, r 106 108])
+  , [r 10 12, r 254 255] ~=?
+    to' (fr' [r 11 12, r 255 255, r 10 10, r 254 254])
+  ]
+  where
+    to  = toRanges :: PartitionL Char -> [Range Char]
+    fr  = fromRanges :: [Range Char] -> PartitionL Char
+    to' = toRanges :: PartitionL Word8 -> [Range Word8]
+    fr' = fromRanges :: [Range Word8] -> PartitionL Word8
+    r   = Range
 
 t_alphabet_empty = "alphabet, empty" ~: test
-  [ all (not . member' (empty    :: PartitionL Word8)) bytes ~=? True
+  [
+    all (not . member' (empty    :: PartitionL Word8)) bytes ~=? True
   , all (      member' (alphabet :: PartitionL Word8)) bytes ~=? True
   ]
   where
     bytes   = [minBound..maxBound]
     member' = flip member
 
--- t_member
+t_member = "member" ~: test
+  [
+    True ~=? member 'a' (fr [r 'a' 'a'])
+  , True ~=? member 'c' (fr [r 'a' 'z'])
+  , True ~=? member 'c' (fr [r 'A' 'B', r 'C' 'E', r 'a' 'c'])
+  , True ~=? member 'c' (fr [r 'A' 'F', r 'c' 'e'])
+  , False ~=? member 'c' (fr [r 'A' 'F', r 'a' 'b'])
+  , False ~=? member 'c' (fr [r 'A' 'F', r 'a' 'b', r 'd' 'z'])
+  ]
+  where
+    fr = fromRanges :: [Range Char] -> PartitionL Char
+    r  = Range
 
--- t_complement
+t_complement = "complement" ~: test
+  [
+    (toList $ fr [r minBound 'a', r 'y' maxBound]) ~=?
+    (toList $ co (fr [r 'b' 'x']))
+  , (toList $ fr [r 'a' 'b', r 'i' 'i', r 'x' 'z']) ~=?
+    (toList $ co $ co (fr [r 'a' 'b', r 'i' 'i', r 'x' 'z']))
+  , toList alphabet' ~=? (toList $ co empty')
+  , toList empty' ~=? (toList $ co alphabet')
+  , toList empty' ~=? (toList $ co $ co empty')
+  , toList empty' ~=? (toList $ co $ co $ co alphabet')
+  , toList empty' ~=?
+    (toList $ co $ pmap succ $ fr [r minBound 'a', r 'y' maxBound])
+  ]
+  where
+    fr   = fromRanges :: [Range Char] -> PartitionL Char
+    r    = Range
+    co   = complement
+    alphabet' = alphabet :: PartitionL Char
+    empty'    = empty :: PartitionL Char
 
--- t_union
+t_union = "union" ~: test
+  [
+    frL [r 'a' 'a'] ~=? unionL (fr [r 'a' 'a']) empty
+  , frL [r 'a' 'a'] ~=? unionL (fr [r 'a' 'a']) (fr [r 'a' 'a'])
+  , frL [r 'a' 'b'] ~=? unionL (fr [r 'a' 'a']) (fr [r 'b' 'b'])
+  , frL [r 'a' 'd'] ~=? unionL (fr [r 'a' 'c']) (fr [r 'b' 'd'])
+  , frL [r 'a' 'd'] ~=? unionL (fr [r 'a' 'a']) (fr [r 'b' 'd'])
+  , frL [r 'a' 'd'] ~=? unionL (fr [r 'b' 'd']) (fr [r 'a' 'a'])
+  , frL [r 'a' 'd'] ~=? unionL (fr [r 'c' 'd']) (fr [r 'a' 'b'])
+  , frL [r 'a' 'e'] ~=? unionL (fr [r 'c' 'e']) (fr [r 'a' 'd'])
+  , frL [r 'a' 'c', r 'i' 'j'] ~=? unionL (fr [r 'a' 'c'])
+                                          (fr [r 'i' 'j'])
+  , frL [r 'a' 'c', r 'i' 'j'] ~=? unionL (fr [r 'a' 'c'])
+                                          (fr [r 'i' 'j', r 'b' 'c'])
+  , frL [r 'a' 'e', r 'i' 'j', r 'm' 'n'] ~=?
+    unionL (fr [r 'a' 'c', r 'm' 'n']) (fr [r 'i' 'j', r 'b' 'e'])
+  ]
+  where
+    fr         = fromRanges :: [Range Char] -> PartitionL Char
+    frL        = toList . fr
+    unionL a b = toList $ union a b
+    r          = Range
 
--- t_intersect
+t_intersect = "intersect" ~: test
+  [
+    frL [r 'a' 'a'] ~=? intersectL (fr [r 'a' 'a']) (fr [r 'a' 'a'])
+  , toList empty'   ~=? intersectL (fr [r 'a' 'a']) (fr [r 'b' 'b'])
+  , frL [r 'b' 'b'] ~=? intersectL (fr [r 'a' 'b']) (fr [r 'b' 'c'])
+  , frL [r 'b' 'b'] ~=? intersectL (fr [r 'b' 'c']) (fr [r 'a' 'b'])
+  , frL [r 'c' 'e'] ~=? intersectL (fr [r 'a' 'e']) (fr [r 'c' 'x'])
+  , frL [r 'c' 'c'] ~=? intersectL (fr [r 'a' 'a', r 'c' 'f'])
+                                   (fr [r 'b' 'c', r 'g' 'i'])
+  , frL [r 'e' 'f'] ~=? intersectL (fr [r 'a' 'a', r 'c' 'f'])
+                                   (fr [r 'b' 'b', r 'e' 'i'])
+  ]
+  where
+    fr             = fromRanges :: [Range Char] -> PartitionL Char
+    frL            = toList . fr
+    intersectL a b = toList $ intersect a b
+    empty'         = empty :: PartitionL Char
+    r              = Range
 
 suite = test
   [
     t_fromList_toList, t_getBlock, t_representatives, t_pmap, t_toIntervals
-  , t_alphabet_empty
+  , t_fromRanges, t_toRanges, t_alphabet_empty, t_member, t_complement
+  , t_union, t_intersect
   ]
-
-{-
-
-OLD TESTS OF SYMBOL SET:
-
-t_fromRangesC = "fromRanges (Char)" ~: test
-    [ fr [mk 'a' 'a'] ~=? fr [mk 'a' 'a']
-    , fr [mk 'a' 'a'] ~=? fr [mk 'a' 'a', mk 'a' 'a']
-    , fr [mk 'a' 'b'] ~=? fr [mk 'a' 'a', mk 'b' 'b']
-    , fr [mk 'a' 'd'] ~=? fr [mk 'a' 'b', mk 'c' 'd']
-    , fr [mk 'a' 'e'] ~=? fr [mk 'a' 'c', mk 'b' 'e']
-    , fr [mk 'a' 'e'] ~=? fr [mk 'a' 'b', mk 'b' 'b', mk 'd' 'e', mk 'c' 'c']
-    , fr [mk 'c' 'd', mk 'a' 'a'] ~=? fr [mk 'a' 'a', mk 'd' 'd', mk 'c' 'c']
-    , fr [mk 'a' 'g', mk 'A' 'a', mk 'c' 'd', mk 'i' 'l', mk 'm' 'z'] ~=?
-      fr [mk 'A' 'g', mk 'i' 'z']
-    ]
-  where
-    fr = fromRanges
-    mk = mkRange
-
-t_toRangesC = "toRanges (Char)" ~: test
-    [ [mk 'a' 'a'] ~=? to (fr [mk 'a' 'a'])
-    , [mk 'a' 'b'] ~=? to (fr [mk 'a' 'b'])
-    , [mk 'a' 'e'] ~=?
-      to (fr [mk 'a' 'a', mk 'd' 'd', mk 'e' 'e', mk 'c' 'c', mk 'b' 'b'])
-    , [mk 'F' 'M', mk 'c' 'd'] ~=? to (fr [mk 'c' 'd', mk 'F' 'M'])
-    , let x = fr [mk 'g' 'j', mk '0' '8', mk 'a' 'b', mk 'c' 'd', mk 'X' 'X']
-      in x ~=? (fr $ to x)
-    ]
-  where
-    to = toRanges
-    fr = fromRanges
-    mk = mkRange
-
-t_fromPartitionC = "fromPartition (Char)" ~:
-    [ let x = fromRanges [mkRange minBound 'a']
-      in mt [x, complement x] ~=?
-         mt (fr (PC (toValueC 'a')
-                    (PC (oneC .|. toValueC maxBound) NilC)))
-    ]
-  where
-    fr = fromPartition
-    to = toPartition
-    mt = map to
-
-t_memberC = "member (Char)" ~: test
-    [ True ~=? mem 'a' (fr [mk 'a' 'a'])
-    , True ~=? mem 'c' (fr [mk 'a' 'z'])
-    , True ~=? mem 'c' (fr [mk 'A' 'B', mk 'C' 'E', mk 'a' 'c'])
-    , True ~=? mem 'c' (fr [mk 'A' 'F', mk 'c' 'e'])
-    , False ~=? mem 'c' (fr [mk 'A' 'F', mk 'a' 'b'])
-    , False ~=? mem 'c' (fr [mk 'A' 'F', mk 'a' 'b', mk 'd' 'z'])
-    ]
-  where
-    fr  = fromRanges
-    mk  = mkRange
-    mem = member
-
-t_firstSymbC = "firstSymb (Char)" ~: test
-    [ 'a' ~=? firstSymb (fr [mk 'a' 'd'])
-    , 'A' ~=? firstSymb (fr [mk 'a' 'd', mk 'A' 'b'])
-    , '\0' ~=? firstSymb alphabet
-    ]
-  where
-    mk = mkRange
-    fr = fromRanges
-
-t_complementC = "complement (Char)" ~: test
-    [ fr [mk minBound 'a', mk 'y' maxBound] ~=? co (fr [mk 'b' 'x'])
-    , fr [mk 'a' 'b', mk 'i' 'i', mk 'x' 'z'] ~=?
-      coco (fr [mk 'a' 'b', mk 'i' 'i', mk 'x' 'z'])
-    , empty ~=? co alphabet
-    , alphabet ~=? co empty
-    , empty ~=? coco empty
-    , empty ~=? (co $ coco alphabet)
-    ]
-  where
-    fr   = fromRanges
-    mk   = mkRange
-    co   = complement
-    coco = co . co
-
-t_unionC = "union (Char)" ~: test
-    [ fr [mk 'a' 'a'] ~=? union (fr [mk 'a' 'a']) empty
-    , fr [mk 'a' 'a'] ~=? union (fr [mk 'a' 'a']) (fr [mk 'a' 'a'])
-    , fr [mk 'a' 'b'] ~=? union (fr [mk 'a' 'a']) (fr [mk 'b' 'b'])
-    , fr [mk 'a' 'd'] ~=? union (fr [mk 'a' 'c']) (fr [mk 'b' 'd'])
-    , fr [mk 'a' 'd'] ~=? union (fr [mk 'a' 'a']) (fr [mk 'b' 'd'])
-    , fr [mk 'a' 'd'] ~=? union (fr [mk 'b' 'd']) (fr [mk 'a' 'a'])
-    , fr [mk 'a' 'd'] ~=? union (fr [mk 'c' 'd']) (fr [mk 'a' 'b'])
-    , fr [mk 'a' 'e'] ~=? union (fr [mk 'c' 'e']) (fr [mk 'a' 'd'])
-    , fr [mk 'a' 'c', mk 'i' 'j'] ~=? union (fr [mk 'a' 'c'])
-                                            (fr [mk 'i' 'j'])
-    , fr [mk 'a' 'c', mk 'i' 'j'] ~=? union (fr [mk 'a' 'c'])
-                                            (fr [mk 'i' 'j', mk 'b' 'c'])
-    , fr [mk 'a' 'e', mk 'i' 'j', mk 'm' 'n'] ~=?
-      union (fr [mk 'a' 'c', mk 'm' 'n']) (fr [mk 'i' 'j', mk 'b' 'e'])
-    ]
-  where
-    fr = fromRanges
-    mk = mkRange
-
-t_intersectC = "intersect (Char)" ~: test
-    [ fr [mk 'a' 'a'] ~=? intersect (fr [mk 'a' 'a']) (fr [mk 'a' 'a'])
-    , empty           ~=? intersect (fr [mk 'a' 'a']) (fr [mk 'b' 'b'])
-    , fr [mk 'b' 'b'] ~=? intersect (fr [mk 'a' 'b']) (fr [mk 'b' 'c'])
-    , fr [mk 'b' 'b'] ~=? intersect (fr [mk 'b' 'c']) (fr [mk 'a' 'b'])
-    , fr [mk 'c' 'e'] ~=? intersect (fr [mk 'a' 'e']) (fr [mk 'c' 'x'])
-    , fr [mk 'c' 'c'] ~=? intersect (fr [mk 'a' 'a', mk 'c' 'f'])
-                                    (fr [mk 'b' 'c', mk 'g' 'i'])
-    , fr [mk 'e' 'f'] ~=? intersect (fr [mk 'a' 'a', mk 'c' 'f'])
-                                    (fr [mk 'b' 'b', mk 'e' 'i'])
-    ]
-  where
-    fr = fromRanges
-    mk = mkRange
-
-t_fromRangesB = "fromRanges (byte)" ~: test
-    [ fr [mk 12 12] ~=? fr [mk 12 12, mk 12 12]
-    , fr [mk 12 13] ~=? fr [mk 12 12, mk 13 13]
-    , fr [mk 12 13] ~=? fr [mk 13 13, mk 12 12]
-    , fr [mk 12 13] ~=? fr [mk 13 13, mk 12 13]
-    , fr [mk 12 13] ~=? fr [mk 12 13, mk 12 12]
-    , fr [mk 10 90] ~=? fr [mk 41 57, mk 89 90, mk 60 65, mk 10 29, mk 30 31
-                           ,mk 80 88, mk 66 79, mk 32 40, mk 58 59]
-    , fr [mk 12 16, mk 95 95] ~=? fr [mk 14 15, mk 95 95, mk 12 13, mk 16 16]
-    , fr [mk 12 16, mk 95 95] ~=? fr [mk 12 15, mk 95 95, mk 12 16]
-    , alphabet ~=? fr [mk 15 27, mk 0 14, mk 27 255]
-    , alphabet ~=? fr [mk 15 27, mk 0 15, mk 28 255]
-    , alphabet ~=? fr [mk 15 27, mk 0 14, mk 28 30, mk 31 43, mk 42 255]
-    , fr [mk 0 10, mk 35 45, mk 243 255] ~=?
-      fr [mk 243 244, mk 10 10, mk 36 42, mk 245 255, mk 0 9, mk 42 45
-         ,mk 35 35]
-    ]
-  where
-    mk = (mkRange :: Word8 -> Word8 -> Range Word8)
-    fr = fromRanges
-
-t_toRangesB = "toRanges (byte)" ~: test
-    [ [mk 0 5, mk 12 32, mk 83 108] ~=?
-      to (fr [mk 12 25, mk 26 32, mk 0 5, mk 5 5, mk 83 106, mk 106 108])
-    , [mk 10 12, mk 254 255] ~=?
-      to (fr [mk 11 12, mk 255 255, mk 10 10, mk 254 254])
-    ]
-  where
-    mk = (mkRange :: Word8 -> Word8 -> Range Word8)
-    fr = fromRanges
-    to = toRanges
-
-t_toPartitionB = "toPartition (byte)" ~: test
-    [ (PB 7 $ PB (10 .|. oneB) $ PB 19 $ PB (25 .|. oneB) $ PB 255 NilB) ~=?
-      toPartition (fromRanges [mk 20 25, mk 9 10, mk 8 8])
-    , 266 ~=? (10 .|. oneB)
-    , 281 ~=? (25 .|. oneB)
-    ]
-  where
-    mk = (mkRange :: Word8 -> Word8 -> Range Word8)
-
-t_fromPartitionB = "fromPartition (byte)" ~: test
-    [ fromPartition
-      ]
-  where
-    mk = (mkRange :: Word8 -> Word8 -> Range Word8)
-
--}

@@ -10,6 +10,7 @@ category: Text
 synopsis: Competing regular expressions
 extra-source-files:
   tests/run.hs
+  tests/Partition.hs
   docs/notes-cs.org
 description: Text processing tool
 tested-with: GHC == 6.12.1
