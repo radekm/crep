@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleContexts,
-             FlexibleInstances #-}
+             ScopedTypeVariables,
+             MultiParamTypeClasses #-}
 
 -- |
 -- Module    : Core.Matcher
@@ -32,6 +33,7 @@ import qualified Data.Array.Unboxed as U
 import Data.Monoid
 import Core.Partition
 import Data.List (partition, sortBy, groupBy)
+import Data.Word (Word8)
 
 infixl 9 !!!
 
@@ -40,39 +42,52 @@ infixl 9 !!!
 
 type Length = Int
 
-class Matcher m where
-  findWords :: m -> String -> [(RuNum, [Length])]
+class Matcher m s where
+  findWords :: m s -> [s] -> [(RuNum, [Length])]
 
-instance Matcher (BinSearchMatcher Char) where
-  findWords bsm
-    = findWordsGeneric fWhatMatches fMatchPrio fReachablePrio fNextState
-    where
-      fWhatMatches       = (bsmWhatMatches bsm!)
-      fMatchPrio         = (bsmMatchPrio bsm!)
-      fReachablePrio     = (bsmReachablePrio bsm!)
-      fNextState st symb = ttStates !!! (binSearch lo hi symb ttSymbols)
-        where
-          (ttSymbols, ttStates) = bsmTransitionTabs bsm ! st
-          (lo, hi)              = U.bounds ttSymbols
+instance Matcher BinSearchMatcher Char where
+  findWords = findWordsBSM
 
-instance Matcher (CompAlphabetMatcher Char) where
-  findWords cam
-    = findWordsGeneric fWhatMatches fMatchPrio fReachablePrio fNextState
-    where
-      fWhatMatches       = (camWhatMatches cam!)
-      fMatchPrio         = (camMatchPrio cam!)
-      fReachablePrio     = (camReachablePrio cam!)
-      fNextState st symb = (camTransitionTabs cam ! st) !!! translSymb
-        where
-          translTabIdx = camSymbolTranslation cam !!! st
-          translTab    = camTranslationTabs cam ! translTabIdx
-          translSymb   = translTab !!! symb
+instance Matcher BinSearchMatcher Word8 where
+  findWords = findWordsBSM
 
-findWordsGeneric :: (State -> [RuNum])
+findWordsBSM :: (Ord s, U.IArray UArray s)
+             => BinSearchMatcher s -> [s] -> [(RuNum, [Length])]
+findWordsBSM bsm
+  = findWordsGeneric fWhatMatches fMatchPrio fReachablePrio fNextState
+  where
+    fWhatMatches       = (bsmWhatMatches bsm!)
+    fMatchPrio         = (bsmMatchPrio bsm!)
+    fReachablePrio     = (bsmReachablePrio bsm!)
+    fNextState st symb = ttStates !!! (binSearch lo hi symb ttSymbols)
+      where
+        (ttSymbols, ttStates) = bsmTransitionTabs bsm ! st
+        (lo, hi)              = U.bounds ttSymbols
+
+instance Matcher CompAlphabetMatcher Char where
+  findWords = findWordsCAM
+
+instance Matcher CompAlphabetMatcher Word8 where
+  findWords = findWordsCAM
+
+findWordsCAM :: Ix s => CompAlphabetMatcher s -> [s] -> [(RuNum, [Length])]
+findWordsCAM cam
+  = findWordsGeneric fWhatMatches fMatchPrio fReachablePrio fNextState
+  where
+    fWhatMatches       = (camWhatMatches cam!)
+    fMatchPrio         = (camMatchPrio cam!)
+    fReachablePrio     = (camReachablePrio cam!)
+    fNextState st symb = (camTransitionTabs cam ! st) !!! translSymb
+      where
+        translTabIdx = camSymbolTranslation cam !!! st
+        translTab    = camTranslationTabs cam ! translTabIdx
+        translSymb   = translTab !!! symb
+
+findWordsGeneric :: forall s. (State -> [RuNum])
                  -> (State -> Maybe Priority)
                  -> (State -> Maybe Priority)
-                 -> (State -> Char -> State)
-                 -> String
+                 -> (State -> s -> State)
+                 -> [s]
                  -> [(RuNum, [Length])]
 findWordsGeneric fWhatMatches fMatchPrio fReachablePrio fNextState
   = map (\xs -> (snd $ head xs, map fst xs)) .
@@ -84,7 +99,7 @@ findWordsGeneric fWhatMatches fMatchPrio fReachablePrio fNextState
     runDFA :: State {- old state -}
            -> Length
            -> Maybe Priority
-           -> String
+           -> [s]
            -> [[(Length, RuNum)]]
     runDFA _ _ _ [] = []
     runDFA st len maxPrio (symb:symbols)
