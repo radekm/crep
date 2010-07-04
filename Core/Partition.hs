@@ -116,6 +116,7 @@ toIntervals = toIntervals' Nothing . toList
 --
 --   Valid range has @a <= b@.
 data Range s = Range !s !s
+             deriving (Eq, Show)
 
 -- | @'fromRanges' rs@ constructs symbol set with symbols from ranges
 --   in the list @rs@.
