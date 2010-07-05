@@ -15,6 +15,7 @@ module Core.Regex
        , Yes
        , No
        , removeCaptures
+       , toRegexWithCaptures
        , listCaptures
        ) where
 
@@ -64,6 +65,21 @@ removeCaptures (RepeatU lo a)   = RepeatU lo $ removeCaptures a
 removeCaptures (Repeat lo hi a) = Repeat lo hi $ removeCaptures a
 removeCaptures (Not a)          = Not a
 removeCaptures (Capture _ a)    = removeCaptures a
+
+-- | Only for changing type signature.
+toRegexWithCaptures :: Regex p s c -> Regex p s Yes
+toRegexWithCaptures Epsilon          = Epsilon
+toRegexWithCaptures (CharClass set)  = CharClass set
+toRegexWithCaptures (Or a b)         = toRegexWithCaptures a `Or`
+                                       toRegexWithCaptures b
+toRegexWithCaptures (And a b)        = toRegexWithCaptures a `And`
+                                       toRegexWithCaptures b
+toRegexWithCaptures (Concat a b)     = toRegexWithCaptures a `Concat`
+                                       toRegexWithCaptures b
+toRegexWithCaptures (RepeatU lo r)   = RepeatU lo $ toRegexWithCaptures r
+toRegexWithCaptures (Repeat lo hi r) = Repeat lo hi $ toRegexWithCaptures r
+toRegexWithCaptures (Not r)          = Not r
+toRegexWithCaptures r@(Capture _ _)  = r
 
 -- | List of all @i@s from subexpressions matching @'Capture' i _@.
 listCaptures :: Regex p s c -> [Int]

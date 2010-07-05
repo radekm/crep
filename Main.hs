@@ -15,6 +15,7 @@ import FrontEnd.RuleParser
 import Core.PartialOrder ()
 import Control.Applicative ((<$>))
 import Core.UTF8 ()
+import Core.Capture ()
 
 infixl 9 !!!
 
