@@ -11,4 +11,5 @@ runTests ((desc, t):ts)
 runTests []     = return ()
 
 tests :: [(String, String)]
-tests = [("Partition", "Partition")]
+tests = [("Partition", "Partition")
+        ,("UTF8", "UTF8")]

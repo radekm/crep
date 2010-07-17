@@ -1,3 +1,5 @@
+{-# LANGUAGE GADTs #-}
+
 -- |
 -- Module    : Core.UTF8
 -- Copyright : (c) Radek Micek 2010
@@ -8,9 +10,56 @@ module Core.UTF8 where
 
 import Data.Word (Word8, Word)
 import Core.Partition
-import Data.Bits ((.&.), shiftL, shiftR)
+import Data.Bits ((.&.), (.|.), shiftL, shiftR)
+import Core.Regex
+import Core.Rule
 
 type Sequence = [Range Word8]
+
+convertRule :: Rule PartitionL Char -> Rule PartitionL Word8
+convertRule (Rule name prio prefLen regex subst)
+  = Rule name prio prefLen (convertRegex regex) (convertSubst subst)
+
+convertRegex :: Regex PartitionL Char c -> Regex PartitionL Word8 c
+convertRegex Epsilon = Epsilon
+convertRegex (CharClass cs) = convertSymbSet cs
+  where
+    convertSymbSet :: PartitionL Char -> Regex PartitionL Word8 c
+    convertSymbSet pa = sequenceUnion $ map sequenceToRegex
+                                      $ concatMap convertRange
+                                      $ toRanges pa
+      where
+        sequenceToRegex = foldl1 Concat . map CharClass
+                                        . map fromRanges
+                                        . map (\a -> [a])
+
+        sequenceUnion :: [Regex PartitionL Word8 c]
+                      -> Regex PartitionL Word8 c
+        sequenceUnion [] = CharClass empty
+        sequenceUnion xs = foldl1 Or xs
+convertRegex (Or a b) = Or (convertRegex a) (convertRegex b)
+convertRegex (And a b) = And (convertRegex a) (convertRegex b)
+convertRegex (Concat a b) = Concat (convertRegex a) (convertRegex b)
+convertRegex (RepeatU lo a) = RepeatU lo (convertRegex a)
+convertRegex (Repeat lo hi a) = Repeat lo hi (convertRegex a)
+convertRegex (Not a) = And (Not $ convertRegex a)
+                           (convertRegex $ CharClass alphabet)
+convertRegex (Capture i a) = Capture i (convertRegex a)
+
+convertSubst :: Subst Char -> Subst Word8
+convertSubst (Subst s) = Subst $ conv s
+  where
+    conv []              = []
+    conv (TConst cs:xs)  = TConst (concatMap convertOne cs):conv xs
+    conv (TCapture i:xs) = TCapture i:conv xs
+
+    convertOne c
+      | c <= c1   = charToBytes1 c
+      | c <= c2   = charToBytes2 c
+      | c <= c3   = charToBytes3 c
+      | otherwise = charToBytes4 c
+      where
+        (c1,  c2,  c3) = ('\127', '\2047', '\65535')
 
 convertRange :: Range Char -> [Sequence]
 convertRange rng
@@ -80,6 +129,24 @@ charToBytes4 c = [ 240 + bits w 18 3, 128 + bits w 12 6
   where
     w = fromIntegral $ fromEnum c
 
+bytesToChar :: [Word8] -> Char
+bytesToChar xs
+  | y < 128          = remainingBytes y ys
+  | y .&. 224 == 192 = remainingBytes (y .&. mask 5) ys
+  | y .&. 240 == 224 = remainingBytes (y .&. mask 4) ys
+  | y .&. 248 == 240 = remainingBytes (y .&. mask 3) ys
+  | otherwise        = error "Core.UTF8.bytesToChar: invalid UTF-8 sequence"
+  where
+    (y:ys) = map (toEnum . fromEnum) xs
+
+    remainingBytes :: Word -> [Word] -> Char
+    remainingBytes w [] = toEnum $ fromEnum w
+    remainingBytes w (b:bs)
+      = remainingBytes ((w `shiftL` 6) .|. (b .&. mask 6)) bs
+
+    mask :: Int -> Word
+    mask n = (1 `shiftL` n) - 1
+
 limits :: [(Word8, Word8)]
 limits = (error "limits-lo", error "limits-hi") : repeat (128, 191)
 
@@ -90,7 +157,7 @@ bytesToRanges :: [Word8]
               -> [(Word8, Word8)]
               -> Bounds
               -> [Sequence]
-bytesToRanges [] _ _ _ = []
+bytesToRanges [] _ _ _ = [[]]
 bytesToRanges (l:ls) (h:hs) ((min', max'):lims) bounds
   = case bounds of
       None -> next (Range min' max') None
@@ -101,12 +168,13 @@ bytesToRanges (l:ls) (h:hs) ((min', max'):lims) bounds
         | min' == h -> hNext
         | otherwise -> hNext ++ next (Range min' h') None
       Both
-        | l == h    -> lNext {- == hNext -}
+        | l == h    -> bNext
         | l' > h'   -> lNext ++ hNext
         | otherwise -> lNext ++ hNext ++ next (Range l' h') None
   where
     l' = succ l
     h' = pred h
+    bNext = next (Range l h) Both  -- When h == l.
     lNext = next (Range l l) Min
     hNext = next (Range h h) Max
     next rng newBounds = map (rng:) $ bytesToRanges ls hs lims newBounds
