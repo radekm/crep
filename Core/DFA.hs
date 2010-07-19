@@ -32,7 +32,7 @@ import Core.Partition
 import Data.Monoid (Monoid)
 import Data.Graph (SCC(..), stronglyConnCompR)
 import Control.Arrow (second)
-import Data.List (groupBy, sortBy)
+import Data.List (groupBy, sortBy, partition)
 
 infixl 9 !!!
 
@@ -197,8 +197,13 @@ kthEquivalence k dfa = iter 0 (initialEquivalence dfa)
 mergeEquivStates :: Pa p a => Equivalence -> DFA p a -> DFA p a
 mergeEquivStates eq dfa = removeNotGivenStates reprStates newDFA
   where
+    -- Equivalence where state 0 is in the first equivalence class.
+    -- State 0 will be first state in the class.
+    eq' = let ([x], xs) = partition ((== 0) . head) eq
+          in x:xs
+
     -- Each eq. class is represented by one state.
-    reprStates = map head eq
+    reprStates = map head eq'
 
     -- Transitions of @reprStates@ lead only to other @reprStates@.
     newDFA = dfa // map (\st -> (st, updateTransitions stateToReprState
@@ -207,7 +212,7 @@ mergeEquivStates eq dfa = removeNotGivenStates reprStates newDFA
 
     stateToReprState
       = U.array (bounds dfa)
-                (concatMap (\eqCls -> zip eqCls (repeat $ head eqCls)) eq)
+                (concatMap (\eqCls -> zip eqCls (repeat $ head eqCls)) eq')
 
 -- | States not present in the given list will be removed.
 removeNotGivenStates :: Pa p a => [State] -> DFA p a -> DFA p a
