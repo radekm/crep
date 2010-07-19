@@ -14,6 +14,7 @@ module Core.Regex
          Regex(..)
        , Yes
        , No
+       , reverseRegex
        , removeCaptures
        , toRegexWithCaptures
        , listCaptures
@@ -53,6 +54,18 @@ data Yes
 
 -- | Phantom for 'Regex'.
 data No
+
+-- | Reversed regular expression matches reversed words.
+reverseRegex :: Regex p s c -> Regex p s c
+reverseRegex Epsilon = Epsilon
+reverseRegex r@(CharClass _) = r
+reverseRegex (Or a b) = reverseRegex a `Or` reverseRegex b
+reverseRegex (And a b) = reverseRegex a `And` reverseRegex b
+reverseRegex (Concat a b) = reverseRegex b `Concat` reverseRegex a
+reverseRegex (RepeatU lo a) = RepeatU lo (reverseRegex a)
+reverseRegex (Repeat lo hi a) = Repeat lo hi (reverseRegex a)
+reverseRegex (Not a) = Not (reverseRegex a)
+reverseRegex (Capture i a) = Capture i (reverseRegex a)
 
 -- | Subexpressions matching @'Capture' _ r@ are replaced by @r@.
 removeCaptures :: Regex p s c -> Regex p s No
