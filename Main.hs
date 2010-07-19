@@ -6,7 +6,7 @@ import Data.Array.Unboxed (UArray)
 import qualified Data.Array.Unboxed as U
 import Data.Maybe (catMaybes)
 import System.Environment (getArgs)
-import Core.Partition (PartitionL)
+import Core.Partition (PartitionL, toList)
 import Core.RE ()
 import Core.Rule
 import Core.DFA
@@ -16,6 +16,7 @@ import Core.PartialOrder ()
 import Control.Applicative ((<$>))
 import Core.UTF8 ()
 import Core.Capture ()
+import BackEnd.CPP
 
 infixl 9 !!!
 
@@ -39,6 +40,7 @@ main = do rulesFile <- head <$> getArgs
                                            $ buildDFA rules'
                   maCAM = toCompAlphabetMatcher 5 {- alpa partitions -} dfa
                   maBSM = toBinSearchMatcher dfa
+              putStrLn $ show $ map (toList . sdTrans) $ elems $ dfa
               let numOfStates = succ $ snd $ bounds $ dfa
               putStrLn $ "Automaton has " ++ show numOfStates ++ " states"
               let reachableSum = sum $ map (\(Pr p) -> p) $ catMaybes
@@ -46,6 +48,8 @@ main = do rulesFile <- head <$> getArgs
                                      $ elems dfa
               putStrLn $ "Sum of reachable priorities " ++ show reachableSum
 --            putStrLn $ show $ camTranslationTabs matcher ! 1 !!! 'a'
-              putStrLn $ show $ findWords maCAM "abcd"
-              putStrLn $ show $ findWords maBSM "abcd"
+              putStrLn $ show $ findWords maCAM "acbd"
+              putStrLn $ show $ findWords maBSM "acbd"
 --            putStrLn $ show $ elems $ camWhatMatches $ matcher
+              putStrLn ""
+              putStrLn $ generateCode 800 rules'
