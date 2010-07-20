@@ -11,6 +11,7 @@ synopsis: Competing regular expressions
 extra-source-files:
   tests/run.hs
   tests/Partition.hs
+  tests/UTF8.hs
   docs/notes-cs.org
 description: Text processing tool
 tested-with: GHC == 6.12.1
@@ -39,7 +40,8 @@ executable crep
 
   build-depends: base >= 4.2 && < 5, parsec >= 3.0.1 && < 3.2,
                  array >= 0.3 && < 0.4, containers >= 0.3 && < 0.4,
-                 mtl >= 1.1 && < 1.2, template-haskell
+                 mtl >= 1.1 && < 1.2, template-haskell > 2.4,
+                 cmdargs >= 0.1 && < 0.2
 
   ghc-options: -Wall -fwarn-unused-binds -fwarn-unused-imports
                -fwarn-unused-matches -O2
