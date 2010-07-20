@@ -1,27 +1,11 @@
 {-# LANGUAGE FlexibleContexts #-}
 module Main where
 
-import Data.Array
-import Data.Array.Unboxed (UArray)
-import qualified Data.Array.Unboxed as U
-import Data.Maybe (catMaybes)
 import System.Environment (getArgs)
-import Core.Partition (PartitionL, toList)
-import Core.RE ()
-import Core.Rule
-import Core.DFA
-import Core.Matcher
 import FrontEnd.RuleParser
-import Core.PartialOrder ()
-import Control.Applicative ((<$>))
-import Core.UTF8 ()
-import Core.Capture ()
 import BackEnd.CPP
-
-infixl 9 !!!
-
-(!!!) :: (U.IArray UArray b, Ix a) => UArray a b -> a -> b
-(!!!) = (U.!)
+import Control.Applicative ((<$>))
+import Core.Partition (PartitionL)
 
 main :: IO ()
 main = do rulesFile <- head <$> getArgs
@@ -31,10 +15,18 @@ main = do rulesFile <- head <$> getArgs
             Left errMsg -> putStrLn $ "Parsing of rules was not successful: "
                                       ++ show errMsg
             Right rules -> do
-              putStrLn "Parsing OK"
-              -- Build Brzozowski's automaton and print number of its states.
-              putStrLn "Starting Brzozowski's construction..."
               let rules' = map pRule (rules :: [ParsedRule PartitionL])
+              putStrLn ""
+              putStrLn $ generateCode 800 rules'
+
+{-
+This can be useful for debugging:
+
+infixl 9 !!!
+
+(!!!) :: (U.IArray UArray b, Ix a) => UArray a b -> a -> b
+(!!!) = (U.!)
+
               let dfa = kMinimize maxBound $ updateReachablePrio
                                            $ updateWhatMatches rules'
                                            $ buildDFA rules'
@@ -51,5 +43,5 @@ main = do rulesFile <- head <$> getArgs
               putStrLn $ show $ findWords maCAM "acbd"
               putStrLn $ show $ findWords maBSM "acbd"
 --            putStrLn $ show $ elems $ camWhatMatches $ matcher
-              putStrLn ""
-              putStrLn $ generateCode 800 rules'
+
+-}
