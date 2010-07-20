@@ -1,11 +1,21 @@
-{-# LANGUAGE FlexibleContexts, 
+{-# LANGUAGE FlexibleContexts,
              DeriveDataTypeable #-}
+
+-- |
+-- Module    : Main
+-- Copyright : (c) Radek Micek 2009-2010
+-- License   : BSD3
+-- Stability : experimental
+--
+-- Entry point, command line processing, IO.
+--
 module Main where
 
 import FrontEnd.RuleParser
 import BackEnd.CPP
 import Core.Partition (PartitionL)
 import System.Console.CmdArgs
+import qualified System.IO.UTF8 as U
 
 data CrepArgs = CArgs {
                         maxWordLen :: Integer
@@ -38,12 +48,13 @@ wordLenBnds = (1, 512 * 1024)
 
 main :: IO ()
 main = do a <- cmdArgs "crep 0.1, (C) 2009-2010 Radek Micek" [crepArgs]
+
           if maxWordLen a < fst wordLenBnds || maxWordLen a > snd wordLenBnds
             then putStrLn $"Maximal length of matching words must be between "
                            ++ show (fst wordLenBnds) ++ " and "
                            ++ show (snd wordLenBnds)
             else do
-              rulesStr <- readFile (rulesFile a)
+              rulesStr <- U.readFile (rulesFile a)
               let parsed = parseRules rulesStr
               case parsed of
                 Left errMsg
@@ -51,6 +62,7 @@ main = do a <- cmdArgs "crep 0.1, (C) 2009-2010 Radek Micek" [crepArgs]
                                ++ show errMsg
                 Right rs
                   -> do let rules = map pRule (rs :: [ParsedRule PartitionL])
+                        -- Only ASCII characters are written out.
                         writeFile (outputFile a)
                           $ generateCode (fromInteger $ maxWordLen a) rules
 
