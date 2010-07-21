@@ -10,7 +10,10 @@
 --
 -- Generates C++ code.
 --
-module BackEnd.CPP where
+module BackEnd.CPP
+       (
+         generateCode
+       ) where
 
 import Core.Rule
 import Data.Array
@@ -29,8 +32,6 @@ import Core.Regex
 import Control.Applicative ((<$>))
 import Core.PartialOrder
 import BackEnd.Verbatim
-
--- TODO: support for flags.
 
 -- | Generates C++ code.
 generateCode :: Int -> [Rule PartitionL Char] -> String

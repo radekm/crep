@@ -6,7 +6,20 @@
 -- License   : BSD3
 -- Stability : experimental
 --
-module Core.UTF8 where
+module Core.UTF8
+       (
+         Sequence
+       , convertRule
+       , convertRegex
+       , convertRange
+       , convertSubst
+       , splitRange
+       , charToBytes1
+       , charToBytes2
+       , charToBytes3
+       , charToBytes4
+       , bytesToChar
+       ) where
 
 import Data.Word (Word8, Word)
 import Core.Partition
