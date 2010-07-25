@@ -755,6 +755,11 @@ void selectMaxWordAndHigherThan(const list<Words> &ws, const PartialOrder &po,
 // ---------------------------------------------------------------------------
 // Automaton for searching for words
 
+// First byte of code point in UTF-8 encoding.
+bool firstUTF8Byte(unsigned char c) {
+    return (c < 128 || (c&224) == 192 || (c&240) == 224 || (c&248) == 240);
+}
+
 class Automaton {
 public:
     StateNum state;
@@ -772,7 +777,7 @@ public:
         realLen++;
 
         // First byte of UTF-8 sequence.
-        if(c < 128 || (c&224) == 192 || (c&240) == 224 || (c&248) == 240)
+        if(firstUTF8Byte(c))
             ++unicodeLen;
 
         unsigned char translated = mSt2TranslTab[state][c];
@@ -1233,11 +1238,21 @@ bool processWord() {
             if(fromMemoChars > nMemoChars)
                 fromMemoChars = nMemoChars;
 
+            // priznak zda-li byl uz nalezen zacatek UTF8 sekvence
+            bool utf8Start = false;
+
             // vypisi znaky z memoChars
             size_t written = 0;
             size_t memoIdx = nextMemoChar + CNT_MEMO_CHARS - fromMemoChars;
-            for(; written < fromMemoChars; ++written, ++memoIdx)
-                cout << memoChars[memoIdx % CNT_MEMO_CHARS];
+            for(; written < fromMemoChars; ++written, ++memoIdx) {
+                unsigned char toWrite = memoChars[memoIdx % CNT_MEMO_CHARS];
+                if(!utf8Start)
+                    utf8Start = firstUTF8Byte(toWrite);
+                // Vypisujeme pouze pokud byl nalezen zacatek UTF8 sekvence -
+                // pak vypiseme uplne vsechny znaky.
+                if(utf8Start)
+                    cout << toWrite;
+            }
 
             // kolik znaku pred vybranym slovem preskocim
             size_t skipBeforeSelWord = 0;
@@ -1250,8 +1265,15 @@ bool processWord() {
             for(; written < skipBeforeSelWord; ++written, c = c->next) ;
 
             // vypisu znaky pred
-            for(; written < sit->nCharsBefore; ++written, c = c->next)
-                cout << c->content;
+            for(; written < sit->nCharsBefore; ++written, c = c->next) {
+                unsigned char toWrite = c->content;
+                if(!utf8Start)
+                    utf8Start = firstUTF8Byte(toWrite);
+                // Vypisujeme pouze pokud byl nalezen zacatek UTF8 sekvence -
+                // pak vypiseme uplne vsechny znaky.
+                if(utf8Start)
+                    cout << toWrite;
+            }
 
             computeSubst(sit->rule, cout);
             cout << endl << endl;
