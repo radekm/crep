@@ -10,7 +10,7 @@ module Core.Utils where
 
 import Numeric (showHex)
 import Data.Maybe (fromJust)
-import Data.List (group)
+import Data.List (group, groupBy, sortBy)
 
 -- | Removes duplicate items from the given sorted list.
 nubSorted :: Eq a => [a] -> [a]
@@ -41,6 +41,13 @@ sortAndNubWith f = mergeSort . map (:[])
           EQ -> a:merge as  bs  -- Duplicate is removed here.
     merge as@(_:_) [] = as
     merge []       bs = bs
+
+-- | Sorts the list of pairs by the second value. Then groups values
+--   in the list by the second value.
+sortAndGroupBySnd :: Ord b => [(a, b)] -> [[(a, b)]]
+sortAndGroupBySnd = groupBy (co2 (==) snd) . sortBy (co2 compare snd)
+  where
+    co2 f t a b = f (t a) (t b)
 
 -- | List of white characters.
 whiteChars :: String

@@ -32,7 +32,8 @@ import Core.Partition
 import Data.Monoid (Monoid)
 import Data.Graph (SCC(..), stronglyConnCompR)
 import Control.Arrow (second)
-import Data.List (groupBy, sortBy, partition)
+import Data.List (partition)
+import Core.Utils (sortAndGroupBySnd)
 
 infixl 9 !!!
 
@@ -237,13 +238,6 @@ equivalenceToEqArray nStates eq
     stateId :: [[(State, EqClsId)]]
     stateId = zipWith (\states clsId -> zip states $ repeat clsId)
                       eq [0..]
-
--- | Sorts the list of pairs by the second value. Then groups values
---   in the list by the second value.
-sortAndGroupBySnd :: Ord b => [(a, b)] -> [[(a, b)]]
-sortAndGroupBySnd = groupBy (co2 (==) snd) . sortBy (co2 compare snd)
-  where
-    co2 f t a b = f (t a) (t b)
 
 -- ---------------------------------------------------------------------------
 -- DFA construction Brzozowski
