@@ -15,6 +15,8 @@ import FrontEnd.RuleParser
 import BackEnd.CPP
 import Core.Partition (PartitionL)
 import System.Console.CmdArgs
+import Core.Rule (Rule(..))
+import Control.Monad (forM_)
 import qualified System.IO.UTF8 as U
 
 data CrepArgs = CArgs {
@@ -46,6 +48,15 @@ crepArgs
 wordLenBnds :: (Integer, Integer)
 wordLenBnds = (1, 512 * 1024)
 
+printWarnings :: [ParsedRule PartitionL] -> IO ()
+printWarnings rs
+  = do let warnRules = filter (\r -> pTooManyCaptures r ||
+                                     not (null $ pCannotCapture r)) rs
+       forM_ warnRules
+             (\r -> do let (Rule name _ _ _ _) = pRule r
+                       putStrLn $ "Content of some groups in rule '" ++
+                                  name ++ "' cannot be captured.")
+
 main :: IO ()
 main = do a <- cmdArgs "crep 0.1, (C) 2009-2010 Radek Micek" [crepArgs]
 
@@ -61,7 +72,8 @@ main = do a <- cmdArgs "crep 0.1, (C) 2009-2010 Radek Micek" [crepArgs]
                   -> putStrLn $"Parsing of rules was not successful: "
                                ++ show errMsg
                 Right rs
-                  -> do let rules = map pRule (rs :: [ParsedRule PartitionL])
+                  -> do printWarnings rs
+                        let rules = map pRule (rs :: [ParsedRule PartitionL])
                         -- Only ASCII characters are written out.
                         writeFile (outputFile a)
                           $ generateCode (fromInteger $ maxWordLen a) rules
