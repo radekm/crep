@@ -24,17 +24,19 @@ udelat pmapAccumL, ze kazdy blok bude mapovan prave jednou a akumulator bude
 automat (budou se tam akumulovat cilove stavy, ktere jsem postavil)
 --nyni je reprezentatives pouzita i pri hledani silne souvislych komponent
 -rychly mappend pomoci radixoveho trideni
+-zrusit typovou tridu Pa -- stejne budu mit asi jen jednu jeji instanci,
+takze je zbytecna
 
 * Regularni vyrazy
 -dva typy RE a Regex
 --Regex reprezentuje vyraz, ktery byl naparsovan
 --RE je vzdy v normalizovane podobe a je specialne urcen ke konstrukci DFA
 
-** TODO?
+** TODO:
 -v typu RE u sjednoceni, pruniku, zretezeni nahradit seznam dvojici
 --vyhoda: odpadnou specialni pripady jako prazdny a jednoprvkovy seznam
---nevyhoda: bude tezsi normalizace sjednoceni a pruniku, kde tridim regularni
-vyrazy v seznamu
+--nevyhoda: zkomplikuje se normalizace sjednoceni a pruniku, kde tridim
+regularni vyrazy v seznamu
 
 * Parser
 -pouzivam Parsec, nebot vysledny parser dava dobre chybove hlasky
@@ -77,12 +79,64 @@ diky Brzozowskeho konstrukci, takze ciste funkcionalni implementace nevadi)
 --nevyhody: slozitejsi na implementaci, v praxi na "malych" automatech
 je casto pomalejsi nez ostatni algoritmy
 -pro klasickou Brzozowskeho minimalizaci nemam: NFA, podmnozinovou konstrukci
+--aby nebylo potreba NFA, slo by pouzit "Split and join for minimizing:
+Brzozowski's algorithm"
+
+* UTF8
+-je to vubec potreba - stejne zpracovavam jen cele znaky a tech je navic min
+--zjednodusuje to backend a nakladani s chybnym UTF-8
+
+** Konverze regularnich vyrazu (JE)
+-nevyhoda: do konstrukce automatu vstupuji velke regularni vyrazy
+--to bylo zlepseno s implementaci SeqTree, ktery sdruzuje spolecne prefixy
+sekvenci
+
+** Konverze automatu (vyzkouset v budoucnu, pokud uplne nevyradim UTF-8)
+-proste se napred postavi Unicode automat a ten se predela na bajtovy
+-misto prechodu puvodniho automatu se vlozi nove automatiky, ktere
+budou rozpoznavat znaky v UTF-8 kodu
+--ty male automatiky mohu minimalizovat nejakym rychlym algoritmem
+pro minimalizaci acyklickych DFA
+
+** TODO?
+-inspirovat se programem Quex a jeho systemem kodeku pro ruzna kodovani
+a znakove sady
+--slo by pak pridavat dalsi kodeky
+--stejne ale nechci vic nez bajty, UTF8, UTF16, pripadne UTF32
+--podpora endianu
+
+* Konstrukce nahrady
+-v polynomialnim case
+-extrahuji pouze z prvniho opakovani (JE)
+-slova rozdeluji pomoci konecnych automatu
+-alternativne bych extrahoval z kazdeho opakovani a vzdy
+se snazil opakovat co nejdelsi kus slova
+--pak bych ale potreboval az tolik automatu, kolikrat opakuji
+
+* Back end
+-problemem je ze se pro generovani kodu pouziva (++) misto (.)
+--jeste lepsi by bylo pouzit nejakou monadu jako Writer
+
+** TODO:
+-odstranit generator kodu
+--pokud mozno zrychlit stavbu automatu tak, ze generovani neni treba
+-automaticke testovani (asi az program bude bez generatoru kodu)
+--vstupem testu bude text a ocekavane vystupy pro ruzne volby
+--vyber slov se bude delat nahodne anebo vycerpavajicim zpusobem
 
 * Obecne
--paralelismus
+-paralelismus - zpracovavam vice alternativ zaroven
+--slo by: mezitim, co uzivatel rozhoduje, ja si mohu neco predpocitat
+(treba spekulativne)
 
 ** Vstupni usporadni
 -moznost zadavat usporadani pravidel i pomoci nerovnosti
 -moznost zadat vice ruznych usporadani
 -algoritmy v programu jsou na to prizpusobeny, takze s tim neni teoreticky
 problem, ale je to vubec k necemu?
+
+** Rozdelit na knihovnu a program
+-knihovna pro praci s automatem a regularnimi vyrazy
+-knihovna by asi neobsahovala parser regularnich vyrazu, ale jen
+datovy typ regularniho vyrazu
+-knihovna by sla pouzit v generatoru lexikalnich analyzatoru
