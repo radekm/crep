@@ -184,8 +184,11 @@ captureOneRule ruNum (Rule _ _ _prefLen regex subst)
                             ,captDecls]
         captDecls = unlines $
                     map (\i -> let s = show i
-                               in "size_t cStart" ++ s ++ "=0;" ++
-                                  "size_t cLen"   ++ s ++ "=0;") $
+                               in if i /= 0
+                                    then "size_t cStart" ++ s ++ "=0;" ++
+                                         "size_t cLen"   ++ s ++ "=0;"
+                                    else "size_t cStart0=wStart0;" ++
+                                         "size_t cLen0=wLen0;") $
                     capturesInSubst subst'
         bodyCode  = fst $ runState (generateCaptLangCode captLangCode)
                                    (ruNum, 0)
@@ -245,7 +248,7 @@ captureOneRule ruNum (Rule _ _ _prefLen regex subst)
         rmCaptures (t@(TConst _):ts) = t:rmCaptures ts
 
         (Subst terms) = subst
-        definedCaptures  = listCaptures regex
+        definedCaptures  = 0:listCaptures regex
 
 -- | Generates functions for splitting words and matching words.
 --   Tables for automata are generated too.
