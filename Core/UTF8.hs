@@ -19,6 +19,8 @@ module Core.UTF8
        , charToBytes3
        , charToBytes4
        , bytesToChar
+       , SeqTree(..)
+       , sequencesToSeqTree
        ) where
 
 import Data.Word (Word8, Word)
@@ -26,6 +28,8 @@ import Core.Partition
 import Data.Bits ((.&.), (.|.), shiftL, shiftR)
 import Core.Regex
 import Core.Rule
+import Data.Monoid (mconcat)
+import Core.Utils (sortAndGroupBySnd)
 
 type Sequence = [Range Word8]
 
@@ -38,18 +42,9 @@ convertRegex Epsilon = Epsilon
 convertRegex (CharClass cs) = convertSymbSet cs
   where
     convertSymbSet :: PartitionL Char -> Regex PartitionL Word8 c
-    convertSymbSet pa = sequenceUnion $ map sequenceToRegex
-                                      $ concatMap convertRange
-                                      $ toRanges pa
-      where
-        sequenceToRegex = foldl1 Concat . map CharClass
-                                        . map fromRanges
-                                        . map (\a -> [a])
-
-        sequenceUnion :: [Regex PartitionL Word8 c]
-                      -> Regex PartitionL Word8 c
-        sequenceUnion [] = CharClass empty
-        sequenceUnion xs = foldl1 Or xs
+    convertSymbSet = seqTreeToRegex . sequencesToSeqTree
+                                    . concatMap convertRange
+                                    . toRanges
 convertRegex (Or a b) = Or (convertRegex a) (convertRegex b)
 convertRegex (And a b) = And (convertRegex a) (convertRegex b)
 convertRegex (Concat a b) = Concat (convertRegex a) (convertRegex b)
@@ -192,3 +187,55 @@ bytesToRanges (l:ls) (h:hs) ((min', max'):lims) bounds
     hNext = next (Range h h) Max
     next rng newBounds = map (rng:) $ bytesToRanges ls hs lims newBounds
 bytesToRanges _ _ _ _ = error "Core.UTF8.bytesToRanges: bad input"
+
+-- | Represents regular expression composed of character classes,
+--   disjunction and concatenation.
+data SeqTree = Fork [(PartitionL Word8, SeqTree)]
+             | Leaf
+             deriving (Eq, Ord)
+
+instance Show SeqTree where
+  show (Fork xs) = "Fork " ++ show (map (\(p, tr) -> (toRanges p, tr)) xs)
+  show Leaf      = "Leaf"
+
+-- | Each sequence is nonempty or each sequence is empty.
+sequencesToSeqTree :: [Sequence] -> SeqTree
+sequencesToSeqTree [] = Leaf
+sequencesToSeqTree seqs
+  | any null seqs = Leaf
+sequencesToSeqTree seqs = Fork branches'
+  where
+    firstRanges :: [Range Word8]
+    firstRanges = map head seqs
+
+    firstSymbSets :: [PartitionL Word8]
+    firstSymbSets = map (\range -> fromRanges [range]) firstRanges
+
+    allChars = foldl1 union firstSymbSets
+
+    symbSetsByRngs :: [PartitionL Word8]
+    symbSetsByRngs = map (\(_, l, h) -> fromRanges [Range l h])
+                       $ toIntervals
+                       $ mconcat firstSymbSets
+
+    -- Remove symbol sets which contain no characters.
+    symbSets = filter (\set -> intersect set allChars /= empty) symbSetsByRngs
+
+    selectSeqs set
+      = filter (\(rng:_) -> intersect (fromRanges [rng]) set /= empty ) seqs
+
+    rmFirstRange = map tail
+
+    branches = map (\set -> (set, sequencesToSeqTree $ rmFirstRange $
+                                  selectSeqs set)) symbSets
+
+    -- Merge same branches.
+    branches' = map (\br -> (foldl1 union $ map fst br, snd $ head br)) $
+                sortAndGroupBySnd branches
+
+seqTreeToRegex :: SeqTree -> Regex PartitionL Word8 c
+seqTreeToRegex Leaf = Epsilon
+seqTreeToRegex (Fork bs)
+  = foldl1 Or (map (\(set, tr) -> CharClass set `Concat`
+                                  seqTreeToRegex tr)
+                   bs)
