@@ -128,7 +128,7 @@ p_subst = Subst <$> many (p_tconst <|> p_tgroup)
   where
     p_tconst
       = TConst <$> many1 (noneOf_ "\\/$" <|> escapeSeq_ <?> "character")
-    p_tgroup  = TCapture <$> (char '$' >> p_grpCode)
+    p_tgroup  = TCapture <$> (char '$' >> p_grpCode <* skipSpacesAndComments)
     -- We assume that maxCaptureNum has more than one digit.
     p_grpCode = (fst . head . readDec . (:"") <$> digit)
               <|> between (char '{') (char '}') (number 0 maxCaptureNum)
