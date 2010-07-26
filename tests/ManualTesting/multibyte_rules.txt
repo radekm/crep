@@ -1,0 +1,2 @@
+prilis  1  /[pP]říliš/$0/
+ostatni 1  /./$0/

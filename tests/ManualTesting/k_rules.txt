@@ -1,0 +1,4 @@
+# Set: k = 1, 2, 3
+u 1    / a    / u /
+v 1 l  / ab?  / v /
+w 1    / abc  / w /

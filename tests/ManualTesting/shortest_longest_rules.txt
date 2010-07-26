@@ -1,0 +1,3 @@
+x 1    / abc?        / x /
+y 1 s  / ahoj|ahojky / y /
+z 1 l  / lep(?ra)?   / z /

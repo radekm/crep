@@ -12,7 +12,14 @@ extra-source-files:
   tests/run.hs
   tests/Partition.hs
   tests/UTF8.hs
+  tests/ManualTesting/k_in.txt
+  tests/ManualTesting/k_rules.txt
+  tests/ManualTesting/multibyte_in.txt
+  tests/ManualTesting/multibyte_rules.txt
+  tests/ManualTesting/shortest_longest_in.txt
+  tests/ManualTesting/shortest_longest_rules.txt
   docs/notes-cs.org
+
 description: Text processing tool
 tested-with: GHC == 6.12.1
 cabal-version: >= 1.4
