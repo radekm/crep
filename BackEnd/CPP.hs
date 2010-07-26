@@ -688,7 +688,7 @@ public:
         this->rule = rule;
         lens.push_front(len);
     }
-    void addLengh(Length len) {
+    void addLength(Length len) {
         if(!shortest[rule]) // Only insert when rule is non-shortest.
             lens.push_front(len);
     }
@@ -807,7 +807,7 @@ public:
                 toUpdate.push_front(Words(rule, realLen));
             // Rule was found, we add only new length.
             else
-                it->lens.push_front(realLen);
+                it->addLength(realLen);
 
             if(priorities[rule] > maxMatchedPrio)
                 maxMatchedPrio = priorities[rule];
