@@ -125,9 +125,12 @@ se snazil opakovat co nejdelsi kus slova
 --vyber slov se bude delat nahodne anebo vycerpavajicim zpusobem
 
 * Obecne
--paralelismus - zpracovavam vice alternativ zaroven
---slo by: mezitim, co uzivatel rozhoduje, ja si mohu neco predpocitat
-(treba spekulativne)
+
+** Paralelismus
+-paralelismus pri stavbe automatu
+-zpracovavani vice alternativ zaroven
+-text muze pouzivat parBuffer, aby byla slova nalezena i pro nekolik znaku
+dopredu
 
 ** Vstupni usporadni
 -moznost zadavat usporadani pravidel i pomoci nerovnosti
