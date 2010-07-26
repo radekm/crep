@@ -1,0 +1,64 @@
+# Process this file with
+#
+#     crep example.rules rep.cpp
+
+# This file contains rules. Each rule has five parts:
+#
+#     name priority flag / regular expression / substitution /
+#
+# * name is [A-Za-z][A-Za-z0-9]* and must be unique
+#
+# * priority is natural number
+#
+# * flag is s (when rule prefers shorter words) or
+#           l (when longer words are preferred);
+#   flag can be omitted, in such case value is s
+
+# Regular expressions consist of:
+#
+#     a|b        disjunction (lowest priority)
+#     a&b        conjunctuin
+#     ab         concatenation (highest priority)
+#     a*         zero or more repetitions of a
+#     a+         one or more repetitions of a
+#     a?         zero or one repetitions of a
+#     a{8,17}    at least 8 repetitions and at most 17 repetitions
+#     a{9,}      at least 9 repetitions of a
+#     a{12}      exactly 12 repetitions of a
+#     ^a         any word which doesnt match a
+#     [abc]      any character in the square brackets
+#     [^abc]     characters between [^ and ] are not allowed
+#     .          any character
+#     [a-x]      range of characters
+#     [A-Z0-9.]  ranges can be combined; dot hasn't special meaning in
+#                square brackets
+#     (a)        capturing group
+#     (?a)       non-capturing group
+#     \+         backslash is used for escaping
+#     \xFF       hexadecimal code of character
+#     \uFFFF     hexadecimal code of character
+#     \x{FFFFF}  hexadecimal code of character (any length)
+#     \u{FFFFF}  same as previous
+#
+# Note: whitespace in regular expression is ignored.
+
+# Substitution consists of:
+#
+#     $1         dollar and digit will be replaced by captured content;
+#                ($0 is whole captured word)
+#     ${23}      more digits can be enclosed in braces
+#     \$         backslash is used for escaping
+#     \xFF       hexadecimal code of character
+#     \uFFFF     hexadecimal code of character
+#     \x{FFFFF}  hexadecimal code of character (any length)
+#     \u{FFFFF}  same as previous
+#
+# Other characters will be copied directly to the substitution.
+#
+# Note: whitespace in substitution is ignored.
+
+# Encloses words cat, dog in brackets:
+enclose  1  / cat | dog / ($0) /
+
+# We want to preserve hotdog:
+preserve 2  / hotdog / $0 /
