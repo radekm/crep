@@ -667,6 +667,9 @@ Alternative *original;
 Alternative *toDecide;
 Alternative *decided;
 
+// Kolikrat bylo na vyber vic nez jedno slovo.
+size_t numOfConflicts;
+
 // ---------------------------------------------------------------------------
 // Words which start at fixed position and match fixed rule.
 
@@ -1311,6 +1314,9 @@ bool processWord() {
     }
 #endif
 
+    // Zapocitej konflikt.
+    numOfConflicts += (selWords.size() > 1);
+
     sit = selWords.begin();
     for(int i = 1; i < selectedNum; ++i, ++sit) ;
     SelWord selectedWord(*sit);
@@ -1447,6 +1453,7 @@ int main(int argc, char** argv) {
 
     // vypisu usporadani
     separator();
+    cout << "Number of conflicts: " << numOfConflicts << endl;
     cout << "Alternatives: " << endl;
 
     // uvolnim alternativy v original
