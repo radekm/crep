@@ -1221,7 +1221,7 @@ bool processWord() {
 
 #ifndef SELECT_FIRST
     // Vice nez jedno slovo, nechame uzivatele vybrat.
-    if(selWords.size() > 0) {
+    if(selWords.size() > 1) {
         separator();
         cout << "Select 1 of " << selWords.size() << " words:" << endl << endl;
 
