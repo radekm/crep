@@ -432,6 +432,7 @@ beforeAutomaton  = [$verbatim|
 
 // Flags:
 // #define SELECT_FIRST
+// #define NO_CONTEXT
 
 #include <bitset>
 #include <iostream>
@@ -448,7 +449,12 @@ typedef size_t Length;
 typedef size_t StateNum;
 
 #ifndef SELECT_FIRST
-#define SHOW_PREV_CHARS 4
+
+#ifdef NO_CONTEXT
+#define SHOW_PREV_CHARS 0
+#else
+#define SHOW_PREV_CHARS 30
+#endif
 
 // Pocet zpracovanych pismen, ktere si system uchovava. Tato jsou pouzita
 #define CNT_MEMO_CHARS 32
