@@ -19,6 +19,7 @@ extra-source-files:
   tests/ManualTesting/shortest_longest_in.txt
   tests/ManualTesting/shortest_longest_rules.txt
   docs/notes-cs.org
+  README
 
 description: Text processing tool
 tested-with: GHC == 6.12.1

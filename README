@@ -1,0 +1,56 @@
+-----------------
+HOW TO BUILD CREP
+-----------------
+
+You will need GHC 6.12.1.
+
+To build a program run:
+
+    runhaskell Setup.hs configure
+    runhaskell Setup.hs build
+
+or you can run (for installation per-user):
+
+    runhaskell Setup.hs configure --user
+    runhaskell Setup.hs build
+
+Executable is created in "dist/build/crep" and has name "crep".
+
+------------
+HOW RUN CREP
+------------
+
+You run crep with command
+
+    crep rules-file cpp-code-file
+
+or with command (when you want to explicitly specify maximal length
+of replaced words):
+
+    crep -k 8192 rules-file cpp-code-file
+
+Program' input is the file with rules "rule-file" and output is C++
+code of the program which actually processes files.
+
+-------------------------
+HOW TO USE GENERATED CODE
+-------------------------
+
+You compile it:
+
+    g++ -O2 cpp-code-file -o executable
+
+or (no user interaction):
+
+    g++ -O2 -DSELECT_FIRST cpp-code-file -o executable
+
+or (context has zero length -- useful for binary files):
+
+    g++ -O2 -DNO_CONTEXT cpp-code-file -o executable
+
+Resulting program is run:
+
+    executable input output
+
+where input is file to be processed and output is resulting file
+(input /= output).
