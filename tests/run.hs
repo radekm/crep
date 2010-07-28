@@ -12,4 +12,5 @@ runTests []     = return ()
 
 tests :: [(String, String)]
 tests = [("Partition", "Partition")
-        ,("UTF8", "UTF8")]
+        ,("UTF8", "UTF8")
+        ,("Matcher", "Matcher")]
