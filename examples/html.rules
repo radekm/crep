@@ -1,0 +1,2 @@
+removeDiv  1 l  / <div> ^ (? .* <\/div> .* ) <\/div> / /
+preserverP 2 l  / <p>   ^ (? .* <\/p>   .* ) <\/p>   / $0 /
