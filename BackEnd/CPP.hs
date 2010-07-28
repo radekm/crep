@@ -1301,8 +1301,11 @@ bool processWord() {
 
             if(cin.good()) {
                 if(selectedNum < 0) {
-                    originalAlternatives = true;
+                    originalAlternatives = false;
                     selectedNum = -selectedNum;
+                }
+                else {
+                    originalAlternatives = true;
                 }
 
                 // There is no such alternative.
