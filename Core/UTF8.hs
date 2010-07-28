@@ -51,7 +51,7 @@ convertRegex (Concat a b) = Concat (convertRegex a) (convertRegex b)
 convertRegex (RepeatU lo a) = RepeatU lo (convertRegex a)
 convertRegex (Repeat lo hi a) = Repeat lo hi (convertRegex a)
 convertRegex (Not a) = And (Not $ convertRegex a)
-                           (convertRegex $ CharClass alphabet)
+                           (convertRegex $ RepeatU 0 $ CharClass alphabet)
 convertRegex (Capture i a) = Capture i (convertRegex a)
 
 convertSubst :: Subst Char -> Subst Word8
