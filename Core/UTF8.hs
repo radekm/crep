@@ -13,6 +13,8 @@ module Core.UTF8
        , convertRegex
        , convertRange
        , convertSubst
+       , convertString
+       , convertChar
        , splitRange
        , charToBytes1
        , charToBytes2
@@ -58,16 +60,20 @@ convertSubst :: Subst Char -> Subst Word8
 convertSubst (Subst s) = Subst $ conv s
   where
     conv []              = []
-    conv (TConst cs:xs)  = TConst (concatMap convertOne cs):conv xs
+    conv (TConst cs:xs)  = TConst (convertString cs):conv xs
     conv (TCapture i:xs) = TCapture i:conv xs
 
-    convertOne c
-      | c <= c1   = charToBytes1 c
-      | c <= c2   = charToBytes2 c
-      | c <= c3   = charToBytes3 c
-      | otherwise = charToBytes4 c
-      where
-        (c1,  c2,  c3) = ('\127', '\2047', '\65535')
+convertString :: String -> [Word8]
+convertString = concatMap convertChar
+
+convertChar :: Char -> [Word8]
+convertChar c
+  | c <= c1   = charToBytes1 c
+  | c <= c2   = charToBytes2 c
+  | c <= c3   = charToBytes3 c
+  | otherwise = charToBytes4 c
+  where
+    (c1,  c2,  c3) = ('\127', '\2047', '\65535')
 
 convertRange :: Range Char -> [Sequence]
 convertRange rng
