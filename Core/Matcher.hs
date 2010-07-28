@@ -32,8 +32,9 @@ import Data.Array.Unboxed (UArray)
 import qualified Data.Array.Unboxed as U
 import Data.Monoid
 import Core.Partition
-import Data.List (partition, sortBy, groupBy)
+import Data.List (partition)
 import Data.Word (Word8)
+import Core.Utils
 
 infixl 9 !!!
 
@@ -91,8 +92,7 @@ findWordsGeneric :: forall s. (State -> [RuNum])
                  -> [(RuNum, [Length])]
 findWordsGeneric fWhatMatches fMatchPrio fReachablePrio fNextState
   = map (\xs -> (snd $ head xs, map fst xs)) .
-    groupBy (\a b -> snd a == snd b) .
-    sortBy (\a b -> snd a `compare` snd b) .
+    sortAndGroupBySnd .
     concat .
     runDFA 0 1 Nothing
   where
