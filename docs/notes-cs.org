@@ -31,6 +31,9 @@ takze je zbytecna
 -dva typy RE a Regex
 --Regex reprezentuje vyraz, ktery byl naparsovan
 --RE je vzdy v normalizovane podobe a je specialne urcen ke konstrukci DFA
+--pro obycejne algebraicke datove typy umi instanci typove tridy odvodit
+kompilator a takto odvozene porovnavani je asi 2 krat rychlejsi, nez
+rucne napsane porovnavani (to se projevuje pri konstrukci automatu)
 
 ** TODO:
 -v typu RE u sjednoceni, pruniku, zretezeni nahradit seznam dvojici
