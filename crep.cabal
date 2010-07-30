@@ -9,8 +9,10 @@ stability: experimental
 category: Text
 synopsis: Competing regular expressions
 extra-source-files:
-  examples/example.rules
-  examples/example.txt
+  examples/intro.rules
+  examples/intro.txt
+  examples/html.rules
+  examples/html.txt
   tests/run.hs
   tests/Partition.hs
   tests/UTF8.hs
