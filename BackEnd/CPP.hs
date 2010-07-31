@@ -548,10 +548,8 @@ void separator() {
 // zapamatuje si znak
 void memo_char(unsigned char c) {
     memoChars[nextMemoChar] = c;
-    ++nextMemoChar;
-    if(nMemoChars == CNT_MEMO_CHARS)
-        nextMemoChar %= CNT_MEMO_CHARS;
-    else /* nMemoChars < CNT_MEMO_CHARS */
+    nextMemoChar = (nextMemoChar + 1) % CNT_MEMO_CHARS;
+    if(nMemoChars != CNT_MEMO_CHARS) /* nMemoChars < CNT_MEMO_CHARS */
         ++nMemoChars;
 }
 
