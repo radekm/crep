@@ -1,0 +1,9 @@
+crep
+-compiled with -O2 -DSELECT_FIRST
+-run with ./a.out <INPUT-FILE> <OUTPUT-FILE>
+
+sed
+-run with sed -f <FILE-WITH-GENSED-OUTPUT> <INPUT-FILE> > <OUTPUT-FILE>
+
+perl
+-run with perl -p -e '<GENPERL-OUTPUT>' <INPUT-FILE> > <OUTPUT-FILE>
