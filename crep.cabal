@@ -9,19 +9,54 @@ stability: experimental
 category: Text
 synopsis: Competing regular expressions
 extra-source-files:
-  examples/intro.rules
-  examples/intro.txt
+  examples/html.in
   examples/html.rules
-  examples/html.txt
+  examples/intro.in
+  examples/intro.rules
+
+  examples/tutor-cs/00-slon.in
+  examples/tutor-cs/00-slon.rules
+  examples/tutor-cs/01-svisti.in
+  examples/tutor-cs/01-svisti.rules
+  examples/tutor-cs/02-bratri.in
+  examples/tutor-cs/02-bratri.rules
+  examples/tutor-cs/03-obr.in
+  examples/tutor-cs/03-obr.rules
+  examples/tutor-cs/04-obr.in
+  examples/tutor-cs/04-obr.rules
+  examples/tutor-cs/05-cenzura.in
+  examples/tutor-cs/05-cenzura.rules
+  examples/tutor-cs/06-gol.in
+  examples/tutor-cs/06-gol.rules
+  examples/tutor-cs/07-zvirata.in
+  examples/tutor-cs/07-zvirata.rules
+  examples/tutor-cs/08-vice-usp.in
+  examples/tutor-cs/08-vice-usp.rules
+  examples/tutor-cs/09-konflikt.in
+  examples/tutor-cs/09-konflikt.rules
+  examples/tutor-cs/10-pocitadla.in
+  examples/tutor-cs/10-pocitadla.rules
+
   tests/run.hs
+  tests/Matcher.hs
   tests/Partition.hs
   tests/UTF8.hs
-  tests/ManualTesting/k_in.txt
-  tests/ManualTesting/k_rules.txt
-  tests/ManualTesting/multibyte_in.txt
-  tests/ManualTesting/multibyte_rules.txt
-  tests/ManualTesting/shortest_longest_in.txt
-  tests/ManualTesting/shortest_longest_rules.txt
+
+  tests/ManualTesting/k.in
+  tests/ManualTesting/k.rules
+  tests/ManualTesting/multibyte.in
+  tests/ManualTesting/multibyte.rules
+  tests/ManualTesting/orderings.in
+  tests/ManualTesting/orderings.rules
+  tests/ManualTesting/shortest_longest.in
+  tests/ManualTesting/shortest_longest.rules
+
+  tests/SpeedTesting/commands.txt
+  tests/SpeedTesting/gencrep.sh
+  tests/SpeedTesting/genperl.sh
+  tests/SpeedTesting/gensed.sh
+  tests/SpeedTesting/getwords.sh
+
   docs/notes-cs.org
   README
 
