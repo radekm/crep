@@ -15,7 +15,7 @@ import Data.Array.Unboxed
 
 -- | Rule consists of name, priority, flag for preferred length of selected
 --   parts, regular expression and substitution.
-data Rule p a = Rule Name !Priority !PrefLen (Regex p a Yes) (Subst a)
+data Rule a = Rule Name !Priority !PrefLen (Regex a Yes) (Subst a)
 
 -- | Name of the rule.
 type Name = String

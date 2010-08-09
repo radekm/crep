@@ -21,12 +21,11 @@ import FrontEnd.RegexParser
 import FrontEnd.Parsec
 import Core.Regex
 import Core.Rule
-import Core.Partition (Pa)
 
 -- | Parsed rule with additional information.
-data ParsedRule p
+data ParsedRule
   = P { -- | Rule which was parsed.
-        pRule :: Rule p Char
+        pRule :: Rule Char
         -- | Content of which groups cannot be captured.
         --
         --   Only groups with number not exceeding 'maxCaptureNum'
@@ -74,7 +73,7 @@ addName n (S i cc m names) = S i cc m (n:names)
 -- Parsing
 
 -- | Parses all rules in the given string.
-parseRules :: Pa p Char => String -> Either ParseError [ParsedRule p]
+parseRules :: String -> Either ParseError [ParsedRule]
 parseRules = runParser p_rules newState "rules"
 
 -- | Parses given string into regular expression.
@@ -82,15 +81,15 @@ parseRules = runParser p_rules newState "rules"
 -- Note: This function should naturally be part of the 'FrontEnd.RegexParser'
 -- module but it uses 'RuleParserState' which is in this module so it is
 -- in this module too.
-parseRegex :: Pa p Char => String -> Either ParseError (Regex p Char Yes)
+parseRegex :: String -> Either ParseError (Regex Char Yes)
 parseRegex = runParser p_regex newState "regular expression"
 
 -- | Parses all rules until EOF.
-p_rules :: Pa p Char => Parsec String RuleParserState [ParsedRule p]
+p_rules :: Parsec String RuleParserState [ParsedRule]
 p_rules = skipSpacesAndComments *> many p_rule <* eof
 
 -- | Parses one rule.
-p_rule :: Pa p Char => Parsec String RuleParserState (ParsedRule p)
+p_rule :: Parsec String RuleParserState ParsedRule
 p_rule = do modifyState nextRule
             rule <- (Rule <$> p_name <*> p_priority <*>
                               p_flag <*> p_regex' <*> p_subst')

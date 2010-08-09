@@ -20,6 +20,8 @@ module Core.Regex
        , listCaptures
        ) where
 
+import Core.Partition
+
 -- | Type @'Regex' p s c@ represents regular expressions where
 --
 -- * @s@ is type of symbols,
@@ -27,27 +29,27 @@ module Core.Regex
 -- * @p s@ represents set of symbols,
 --
 -- * flag @c@ affects whether constructor 'Capture' can be used.
-data Regex p s c where
+data Regex s c where
   -- @'Epsilon'@ denotes @L = {empty word}@.
-  Epsilon :: Regex p s c
+  Epsilon :: Regex s c
   -- @'CharClass' set@ denotes @L = set@.
-  CharClass :: p s -> Regex p s c
+  CharClass :: Pa s -> Regex s c
   -- @'Or' a b@ denotes @L = L(a) \\\/ L(b)@.
-  Or :: Regex p s c -> Regex p s c -> Regex p s c
+  Or :: Regex s c -> Regex s c -> Regex s c
   -- @'And' a b@ denotes @L = L(a) \/\\ L(b)@.
-  And :: Regex p s c -> Regex p s c -> Regex p s c
+  And :: Regex s c -> Regex s c -> Regex s c
   -- @'Concat' a b@ denotes @L = {uv | u in L(a), v in L(b)}@.
-  Concat :: Regex p s c -> Regex p s c -> Regex p s c
+  Concat :: Regex s c -> Regex s c -> Regex s c
   -- @'RepeatU' lo a@ denotes
   -- @L = {u_1 u_2 ... u_n | u_i in L(a), n is natural number, lo <= n}@.
-  RepeatU :: !Int -> Regex p s c -> Regex p s c
+  RepeatU :: !Int -> Regex s c -> Regex s c
   -- @'Repeat' lo hi a@ denotes
   -- @L = {u_1 ... u_n | u_i in L(a), n is natural number, lo <= n <= hi}@.
-  Repeat :: !Int -> !Int -> Regex p s c -> Regex p s c
+  Repeat :: !Int -> !Int -> Regex s c -> Regex s c
   -- @'Not' a@ denotes @L = all words except those in L(a)@.
-  Not :: Regex p s No -> Regex p s c
+  Not :: Regex s No -> Regex s c
   -- @'Capture' i a@ denotes @L = L(a)@.
-  Capture :: !Int -> Regex p s c -> Regex p s Yes
+  Capture :: !Int -> Regex s c -> Regex s Yes
 
 -- | Phantom for 'Regex'.
 data Yes
@@ -56,7 +58,7 @@ data Yes
 data No
 
 -- | Reversed regular expression matches reversed words.
-reverseRegex :: Regex p s c -> Regex p s c
+reverseRegex :: Regex s c -> Regex s c
 reverseRegex Epsilon = Epsilon
 reverseRegex r@(CharClass _) = r
 reverseRegex (Or a b) = reverseRegex a `Or` reverseRegex b
@@ -68,7 +70,7 @@ reverseRegex (Not a) = Not (reverseRegex a)
 reverseRegex (Capture i a) = Capture i (reverseRegex a)
 
 -- | Subexpressions matching @'Capture' _ r@ are replaced by @r@.
-removeCaptures :: Regex p s c -> Regex p s No
+removeCaptures :: Regex s c -> Regex s No
 removeCaptures Epsilon          = Epsilon
 removeCaptures (CharClass set)  = CharClass set
 removeCaptures (Or a b)         = removeCaptures a `Or` removeCaptures b
@@ -80,7 +82,7 @@ removeCaptures (Not a)          = Not a
 removeCaptures (Capture _ a)    = removeCaptures a
 
 -- | Only for changing type signature.
-toRegexWithCaptures :: Regex p s c -> Regex p s Yes
+toRegexWithCaptures :: Regex s c -> Regex s Yes
 toRegexWithCaptures Epsilon          = Epsilon
 toRegexWithCaptures (CharClass set)  = CharClass set
 toRegexWithCaptures (Or a b)         = toRegexWithCaptures a `Or`
@@ -95,7 +97,7 @@ toRegexWithCaptures (Not r)          = Not r
 toRegexWithCaptures r@(Capture _ _)  = r
 
 -- | List of all @i@s from subexpressions matching @'Capture' i _@.
-listCaptures :: Regex p s c -> [Int]
+listCaptures :: Regex s c -> [Int]
 listCaptures Epsilon        = []
 listCaptures (CharClass _)  = []
 listCaptures (Or a b)       = listCaptures a ++ listCaptures b

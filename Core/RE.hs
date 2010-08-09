@@ -30,17 +30,17 @@ import Data.Monoid
 -- * @s@ is type of symbols,
 --
 -- * @p s@ represents set of symbols.
-data RE p s = RCharClass (p s)
-            | REpsilon
-            | ROr [RE p s]
-            | RAnd [RE p s]
-            | RConcat [RE p s]
-            | RStar (RE p s)
-            | RNot (RE p s)
-            deriving (Eq, Ord)
+data RE s = RCharClass (Pa s)
+          | REpsilon
+          | ROr [RE s]
+          | RAnd [RE s]
+          | RConcat [RE s]
+          | RStar (RE s)
+          | RNot (RE s)
+          deriving (Eq, Ord)
 
 -- | Converts @Regex@ to @RE@.
-toRE :: (Pa p s, Ord (p s)) => Regex p s c -> RE p s
+toRE :: Symbol s => Regex s c -> RE s
 toRE Epsilon         = REpsilon
 toRE (CharClass set) = RCharClass set
 toRE (Or a b)        = consOr [toRE a, toRE b]
@@ -61,7 +61,7 @@ toRE (Capture _ a)   = toRE a
 
 -- | Applies 'ROr' to the list of normalized regular expressions.
 --   Returns normalized regular expression.
-consOr :: (Pa p s, Ord (p s)) => [RE p s] -> RE p s
+consOr :: Symbol s => [RE s] -> RE s
 consOr = fin . nubSorted . sort . unionCharClasses . concatMap item
   where
     item (ROr xs)         = xs  -- Take up nested disjunction.
@@ -78,7 +78,7 @@ consOr = fin . nubSorted . sort . unionCharClasses . concatMap item
 
 -- | Applies 'RAnd' to the list of normalized regular expressions.
 --   Returns normalized regular expression.
-consAnd :: (Pa p s, Ord (p s)) => [RE p s] -> RE p s
+consAnd :: Symbol s => [RE s] -> RE s
 consAnd = fin . nubSorted . sort . intersectCharClasses . concatMap item
   where
     item (RAnd xs)        = xs  -- Take up nested conjunction.
@@ -95,7 +95,7 @@ consAnd = fin . nubSorted . sort . intersectCharClasses . concatMap item
 
 -- | Applies 'RConcat' to the list of normalized regular expressions.
 --   Returns normalized regular expression.
-consConcat :: (Eq (p s), Pa p s) => [RE p s] -> RE p s
+consConcat :: Symbol s => [RE s] -> RE s
 consConcat = fin . concatMap item
   where
     item (RConcat xs) = xs  -- Take up nested concatenation.
@@ -108,7 +108,7 @@ consConcat = fin . concatMap item
 
 -- | Applies 'RStar' to the normalized regular expression.
 --   Returns normalized regular expression.
-consStar :: (Eq (p s), Pa p s) => RE p s -> RE p s
+consStar :: Symbol s => RE s -> RE s
 consStar r = case r of
                REpsilon           -> REpsilon  -- Empty string.
                RStar _            -> r         -- Idempotence.
@@ -120,7 +120,7 @@ consStar r = case r of
 
 -- | Applies 'RStar' to the normalized regular expression.
 --   Returns normalized regular expression.
-consNot :: (Eq (p s), Pa p s) => RE p s -> RE p s
+consNot :: Symbol s => RE s -> RE s
 consNot r = case r of
               RNot r' -> r'  -- Double not.
               _ | r == minLang -> maxLang  -- Empty language.
@@ -133,7 +133,7 @@ consNot r = case r of
 --   matching @'RCharClass' set@,
 --
 -- * @os@ is a list of regular expressions which don't match @'RCharClass' _@.
-separateSymbolSets :: [RE p s] -> ([p s], [RE p s])
+separateSymbolSets :: [RE s] -> ([Pa s], [RE s])
 separateSymbolSets = p [] []
   where
     p sets os (r:rs) = case r of RCharClass set -> p (set:sets) os     rs
@@ -141,15 +141,15 @@ separateSymbolSets = p [] []
     p sets os []     = (sets, os)
 
 -- | Empty language.
-minLang :: Pa p s => RE p s
+minLang :: Symbol s => RE s
 minLang = RCharClass empty
 
 -- | Language with all words.
-maxLang :: Pa p s => RE p s
+maxLang :: Symbol s => RE s
 maxLang = RStar $ RCharClass alphabet
 
 -- | Returns whether given regular expression matches empty word.
-nullable :: RE p s -> Bool
+nullable :: RE s -> Bool
 nullable (RCharClass _) = False
 nullable REpsilon       = True
 nullable (ROr rs)       = or (map nullable rs)
@@ -160,7 +160,7 @@ nullable (RNot r)       = not (nullable r)
 
 -- | The function @'derivative' c r@ returns left derivative
 --   of regular expression @r@ by character @c@.
-derivative :: (Pa p s, Ord (p s)) => s -> RE p s -> RE p s
+derivative :: Symbol s => s -> RE s -> RE s
 derivative c (RCharClass set)
   | member c set = REpsilon
   | otherwise    = RCharClass empty
@@ -180,7 +180,7 @@ derivative c (RNot r)       = consNot (derivative c r)
 -- | Function @'partitionAlphabetByDerivatives' r@ returns partition
 --   of the alphabet where derivatives of @r@ by characters from the same
 --   block are same.
-partitionAlphabetByDerivatives :: Monoid (p s) => RE p s -> p s
+partitionAlphabetByDerivatives :: Symbol s => RE s -> Pa s
 partitionAlphabetByDerivatives re
   = case re of
       RCharClass set -> set
@@ -202,7 +202,7 @@ partitionAlphabetByDerivatives re
 --   block are same.
 --
 --   Note: Derivative of list is list of derivatives.
-partitionAlphabetByDerivativesMany :: Monoid (p s) => [RE p s] -> p s
+partitionAlphabetByDerivativesMany :: Symbol s => [RE s] -> Pa s
 partitionAlphabetByDerivativesMany rs
   = mconcat (map partitionAlphabetByDerivatives rs)
 {-# INLINE partitionAlphabetByDerivativesMany #-}

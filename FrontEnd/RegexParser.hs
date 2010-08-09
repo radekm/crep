@@ -38,30 +38,27 @@ class RegexParserSt a where
   tooManyCaptures :: a -> a
 
 -- | Parses regular expression.
-p_regex :: (Pa p Char, RegexParserSt st)
-        => Parsec String st (Regex p Char Yes)
+p_regex :: RegexParserSt st => Parsec String st (Regex Char Yes)
 p_regex = p_or
 
 -- | Parses union.
-p_or :: (Pa p Char, RegexParserSt st) => Parsec String st (Regex p Char Yes)
+p_or :: RegexParserSt st => Parsec String st (Regex Char Yes)
 p_or = safeFoldl1 (error "p_or") Or <$> sepBy1 p_and (char_ '|')
 
 -- | Parses intersection.
-p_and :: (Pa p Char, RegexParserSt st) => Parsec String st (Regex p Char Yes)
+p_and :: RegexParserSt st => Parsec String st (Regex Char Yes)
 p_and = safeFoldl1 (error "p_and") And <$> sepBy1 p_concat (char_ '&')
 
 -- | Parses concatenation.
-p_concat :: (Pa p Char, RegexParserSt st)
-         => Parsec String st (Regex p Char Yes)
+p_concat :: RegexParserSt st => Parsec String st (Regex Char Yes)
 p_concat = safeFoldl1 Epsilon Concat <$> many p_repeat
 
 -- | Parses negated atom with quantifier.
-p_repeat :: (Pa p Char, RegexParserSt st)
-         => Parsec String st (Regex p Char Yes)
+p_repeat :: RegexParserSt st => Parsec String st (Regex Char Yes)
 p_repeat = p_natom <**> option id p_quantifier
 
 -- | Parses quantifier.
-p_quantifier :: Parsec String st (Regex p Char Yes -> Regex p Char Yes)
+p_quantifier :: Parsec String st (Regex Char Yes -> Regex Char Yes)
 p_quantifier = choice [ char_ '*' >> return (RepeatU 0)
                       , char_ '+' >> return (RepeatU 1)
                       , char_ '?' >> return (Repeat 0 1)
@@ -75,8 +72,8 @@ p_quantifier = choice [ char_ '*' >> return (RepeatU 0)
                    return $ maybe (RepeatU x) (\y' -> Repeat x y') y
 
 -- | Parses negated atom.
-p_natom :: (Pa p Char, RegexParserSt st)
-        => Parsec String st (Regex p Char Yes)
+p_natom :: RegexParserSt st
+        => Parsec String st (Regex Char Yes)
 p_natom = neg <|> p_atom
   where
     neg = do _ <- char_ '^'
@@ -85,7 +82,7 @@ p_natom = neg <|> p_atom
              return $ Not r
 
 -- | Parses atom of regular expression.
-p_atom :: (Pa p Char, RegexParserSt st) => Parsec String st (Regex p Char Yes)
+p_atom :: RegexParserSt st => Parsec String st (Regex Char Yes)
 p_atom = p_char <|> p_any <|> p_class <|> p_group
   where
     p_char = do c <- p_charInRegex
@@ -93,8 +90,7 @@ p_atom = p_char <|> p_any <|> p_class <|> p_group
     p_any = char_ '.' >> return (CharClass alphabet)
 
 -- | Parses capturing and non-capturing group.
-p_group :: (Pa p Char, RegexParserSt st)
-        => Parsec String st (Regex p Char Yes)
+p_group :: RegexParserSt st => Parsec String st (Regex Char Yes)
 p_group = between (char_ '(') (char_ ')') (p_quest <*> p_regex) <?> "group"
   where
     p_quest = choice [ char_ '?' >> return id
@@ -112,7 +108,7 @@ p_group = between (char_ '(') (char_ ')') (p_quest <*> p_regex) <?> "group"
 -- Parsing character classes
 
 -- | Parses character class.
-p_class :: Pa p Char => Parsec String st (Regex p Char c)
+p_class :: Parsec String st (Regex Char c)
 p_class = between (char_ '[') (char_ ']') (p_caret <*> p_content)
         <?> "character class"
   where

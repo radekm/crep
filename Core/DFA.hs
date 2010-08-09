@@ -29,7 +29,6 @@ import Core.RE
 import Data.Maybe (fromJust)
 import Data.List (mapAccumL)
 import Core.Partition
-import Data.Monoid (Monoid)
 import Data.Graph (SCC(..), stronglyConnCompR)
 import Control.Arrow (second)
 import Data.List (partition)
@@ -43,7 +42,7 @@ infixl 9 !!!
 (///) :: (U.IArray UArray b, Ix a) => UArray a b -> [(a, b)] -> UArray a b
 (///) = (U.//)
 
-data StateData p a
+data StateData a
   = SD {
          -- | List of the rules which match in this state.
          sdMatches :: [RuNum]
@@ -54,16 +53,16 @@ data StateData p a
        , sdReachablePrio :: Maybe Priority
          -- | Transition table of the state is represented as partition
          --   of the alphabet. Block ids represent destination states.
-       , sdTrans :: Transitions p a
+       , sdTrans :: Transitions a
        }
 
 -- | Transitions of one state.
-type Transitions p a = p a
+type Transitions a = Pa a
 
 -- | Deterministic finite state automaton.
 --
 --   Initial state has index 0.
-type DFA p a = Array State (StateData p a)
+type DFA a = Array State (StateData a)
 
 -- | State number.
 type State = Int
@@ -75,7 +74,7 @@ type State = Int
 --
 --   Parameter @rules@ is same list of the rules which was used when
 --   building automaton.
-updateWhatMatches :: [Rule p a] -> DFA p a -> DFA p a
+updateWhatMatches :: [Rule a] -> DFA a -> DFA a
 updateWhatMatches rules dfa
   = listArray (bounds dfa) $ map updateSD $ elems dfa
   where
@@ -93,7 +92,7 @@ updateWhatMatches rules dfa
 -- | Updates 'sReachablePrio' of the given automaton.
 --
 --   'sdMatchPrio' must be already updated.
-updateReachablePrio :: Pa p a => DFA p a -> DFA p a
+updateReachablePrio :: Symbol a => DFA a -> DFA a
 updateReachablePrio dfa = array (bounds dfa) $ map updateState $ assocs dfa
   where
     updateState (st, sd)
@@ -136,7 +135,7 @@ updateReachablePrio dfa = array (bounds dfa) $ map updateState $ assocs dfa
 type Neighbours = [State]
 
 -- | Returns strongly connected components topologically sorted.
-scc :: Pa p a => DFA p a -> [SCC (Maybe Priority, State, Neighbours)]
+scc :: Symbol a => DFA a -> [SCC (Maybe Priority, State, Neighbours)]
 scc = stronglyConnCompR . map convertState . assocs
   where
     convertState (i, sd)
@@ -146,7 +145,7 @@ scc = stronglyConnCompR . map convertState . assocs
 -- Automaton minimization
 
 -- | Moore's minimization.
-kMinimize :: (Ord (p a), Pa p a) => Int -> DFA p a -> DFA p a
+kMinimize :: Symbol a => Int -> DFA a -> DFA a
 kMinimize k dfa = mergeEquivStates (kthEquivalence k dfa) dfa
 
 -- | Equivalence class.
@@ -162,15 +161,15 @@ type EqArray = UArray State EqClsId
 type EqClsId = Int
 
 -- | States are grouped by 'sdMatches'.
-initialEquivalence :: DFA p a -> Equivalence
+initialEquivalence :: DFA a -> Equivalence
 initialEquivalence = map (map fst) . sortAndGroupBySnd
                                    . map (second sdMatches) . assocs
 
 -- | Refine equivalence.
 --
 --   If not refined then returned equivalence is same as original equivalence.
-nextEquivalence :: (Ord (p a), Pa p a)
-                => Equivalence -> DFA p a -> Equivalence
+nextEquivalence :: Symbol a
+                => Equivalence -> DFA a -> Equivalence
 nextEquivalence eq dfa = concatMap refineEqClass eq
   where
     -- IMPORTANT: Order of states is preserved when class is not subdidived.
@@ -183,7 +182,7 @@ nextEquivalence eq dfa = concatMap refineEqClass eq
     eqArr = equivalenceToEqArray (succ $ snd $ bounds dfa) eq
 
 -- | If @k@ is negative number we loop until equivalence is refined.
-kthEquivalence :: (Ord (p a), Pa p a) => Int -> DFA p a -> Equivalence
+kthEquivalence :: Symbol a => Int -> DFA a -> Equivalence
 kthEquivalence k dfa = iter 0 (initialEquivalence dfa)
   where
     -- @equiv@ is @nIter@-th equivalence
@@ -195,7 +194,7 @@ kthEquivalence k dfa = iter 0 (initialEquivalence dfa)
         nextEquiv = nextEquivalence equiv dfa
 
 -- | Every equivalence class is replaced by one state.
-mergeEquivStates :: Pa p a => Equivalence -> DFA p a -> DFA p a
+mergeEquivStates :: Symbol a => Equivalence -> DFA a -> DFA a
 mergeEquivStates eq dfa = removeNotGivenStates reprStates newDFA
   where
     -- Equivalence where state 0 is in the first equivalence class.
@@ -216,7 +215,7 @@ mergeEquivStates eq dfa = removeNotGivenStates reprStates newDFA
                 (concatMap (\eqCls -> zip eqCls (repeat $ head eqCls)) eq')
 
 -- | States not present in the given list will be removed.
-removeNotGivenStates :: Pa p a => [State] -> DFA p a -> DFA p a
+removeNotGivenStates :: Symbol a => [State] -> DFA a -> DFA a
 removeNotGivenStates states dfa
   = listArray (0, pred $ length states)
               (map (updateTransitions oldToNewSt . (dfa!)) states)
@@ -225,8 +224,8 @@ removeNotGivenStates states dfa
     oldToNewSt = U.array (bounds dfa) (zip states [0..])
 
 -- | Maps old state numbers in transition table to new state numbers.
-updateTransitions ::Pa p a
-                  =>  UArray State State -> StateData p a -> StateData p a
+updateTransitions ::Symbol a
+                  =>  UArray State State -> StateData a -> StateData a
 updateTransitions oldToNewStMap (SD m mp rp ts)
   = SD m mp rp $ pmap (oldToNewStMap!!!) ts
 
@@ -252,23 +251,23 @@ type Vector = [Int]
 -- | States are represented by vectors of regular expressions.
 --   We map regular expressions to integers and vectors of integers to state
 --   numbers and so we represent state by numbers.
-data BDFA p a
+data BDFA a
   = BDFA {
-           bRegex2Num :: M.Map (RE p a) Int
+           bRegex2Num :: M.Map (RE a) Int
          , bVector2State :: M.Map Vector State
-         , bStates :: [(State, StateData p a)]
+         , bStates :: [(State, StateData a)]
          }
 
 -- | Builds automaton recognizing given rules.
-buildDFA :: (Monoid (p a), Ord (p a), Pa p a) => [Rule p a] -> DFA p a
+buildDFA :: Symbol a => [Rule a] -> DFA a
 buildDFA = toDFA . fst . constructState emptyBDFA . reList
   where
     reList     = map (\(Rule _ _ _ re _) -> toRE re)
     emptyBDFA  = BDFA M.empty M.empty []
     toDFA bdfa = array (0, pred $ M.size $ bVector2State bdfa) (bStates bdfa)
 
-addRE :: Ord (p a)
-      => M.Map (RE p a) Int -> RE p a -> (M.Map (RE p a) Int, Int)
+addRE :: Symbol a
+      => M.Map (RE a) Int -> RE a -> (M.Map (RE a) Int, Int)
 addRE m re = case M.insertLookupWithKey f key newVal m of
                (Just reNum, _)   -> (m, reNum)
                (Nothing, newMap) -> (newMap, newVal)
@@ -290,8 +289,8 @@ addVector vect m = case M.insertLookupWithKey f key newVal m of
 
 -- | Function @'constructState' bdfa reList@ returns new automaton with
 --   state given by @reList@.
-constructState :: (Monoid (p a), Ord (p a), Pa p a)
-               => BDFA p a -> [RE p a] -> (BDFA p a, State)
+constructState :: Symbol a
+               => BDFA a -> [RE a] -> (BDFA a, State)
 constructState bdfa reList
   = case maybeVect2State of
       Nothing
@@ -316,8 +315,8 @@ constructState bdfa reList
 --   @bdfa@ contains state given by @reList@. That means that regular
 --   expressions in @reList@ are also in @'bRegex2Num' bdfa@ and vector
 --   representing state is in @'bVector2Num' bdfa@.
-buildTransitions :: (Monoid (p a), Ord (p a), Pa p a)
-                 => [RE p a] -> BDFA p a -> (Transitions p a, BDFA p a)
+buildTransitions :: Symbol a
+                 => [RE a] -> BDFA a -> (Transitions a, BDFA a)
 buildTransitions reList bdfa = (transitions, bdfa')
   where
     pa = partitionAlphabetByDerivativesMany reList

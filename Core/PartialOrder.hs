@@ -28,7 +28,7 @@ isGreater :: RuNum -> RuNum -> POrder -> Bool
 isGreater a b po = po!b `idx` a
 
 -- | Creates partial order from given rules.
-fromRules :: [Rule p a] -> POrder
+fromRules :: [Rule a] -> POrder
 fromRules rules = toPOrder groupedRules
   where
     -- Rules are grouped by priority. First group has the lowest priority.

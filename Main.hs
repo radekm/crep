@@ -13,7 +13,6 @@ module Main where
 
 import FrontEnd.RuleParser
 import BackEnd.CPP
-import Core.Partition (PartitionL)
 import System.Console.CmdArgs
 import Core.Rule (Rule(..))
 import Control.Monad (forM_)
@@ -48,7 +47,7 @@ crepArgs
 wordLenBnds :: (Integer, Integer)
 wordLenBnds = (1, 512 * 1024)
 
-printWarnings :: [ParsedRule PartitionL] -> IO ()
+printWarnings :: [ParsedRule] -> IO ()
 printWarnings rs
   = do let warnRules = filter (\r -> pTooManyCaptures r ||
                                      not (null $ pCannotCapture r)) rs
@@ -73,7 +72,7 @@ main = do a <- cmdArgs "crep 0.1, (C) 2009-2010 Radek Micek" [crepArgs]
                                ++ show errMsg
                 Right rs
                   -> do printWarnings rs
-                        let rules = map pRule (rs :: [ParsedRule PartitionL])
+                        let rules = map pRule rs
                         -- Only ASCII characters are written out.
                         writeFile (outputFile a)
                           $ generateCode (fromInteger $ maxWordLen a) rules

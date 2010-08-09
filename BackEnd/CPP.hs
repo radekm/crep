@@ -22,7 +22,6 @@ import qualified Data.Array.Unboxed as U
 import Core.DFA (buildDFA, kMinimize, updateReachablePrio, updateWhatMatches)
 import Core.Matcher
 import Data.List (intersperse)
-import Core.Partition
 import Data.Word (Word8)
 import Core.UTF8 (convertRule, convertRegex, convertSubst)
 import Core.Capture
@@ -34,7 +33,7 @@ import Core.PartialOrder
 import BackEnd.Verbatim
 
 -- | Generates C++ code.
-generateCode :: Int -> [Rule PartitionL Char] -> String
+generateCode :: Int -> [Rule Char] -> String
 generateCode k rules = unlines [
                                  beforeAutomaton
                                , generateRuleNames rules
@@ -70,7 +69,7 @@ generateCode k rules = unlines [
 --   prefer longest.
 --
 --   First parameter is maximal length of the words which will be matched.
-mainPart ::  Int -> [Rule PartitionL Char] -> String
+mainPart ::  Int -> [Rule Char] -> String
 mainPart k rules = unlines $ filter (/= "")
                    ([defK, defCntRules, defShortest, defPriorities] ++
                     translTabs ++ transitTabs ++ whatMatchesTabs ++
@@ -88,7 +87,7 @@ mainPart k rules = unlines $ filter (/= "")
     defPriorities = buildTableL lstPriorities "int priorities"
                     (\(Pr p) -> show p)
 
-    rules' :: [Rule PartitionL Word8]
+    rules' :: [Rule Word8]
     rules' = map convertRule rules
 
     dfa           = kMinimize k' $ updateReachablePrio
@@ -142,7 +141,7 @@ mainPart k rules = unlines $ filter (/= "")
 
 -- | Generates code of the function @computeSubst@ which gets rule number
 --   and output stream and writes substitution into given output stream.
-capturePart ::  [Rule PartitionL Char] -> String
+capturePart ::  [Rule Char] -> String
 capturePart rules = unlines (map (uncurry captureOneRule) numberedRules ++
                              substFunc)
   where
@@ -155,9 +154,9 @@ capturePart rules = unlines (map (uncurry captureOneRule) numberedRules ++
                         numberedRules ++
                     ["}", "}"]
 
-data GenerateI = GMatches (Regex PartitionL Char Yes)
-               | GSplitWord (Regex PartitionL Char Yes)
-                            (Regex PartitionL Char Yes)
+data GenerateI = GMatches (Regex Char Yes)
+               | GSplitWord (Regex Char Yes)
+                            (Regex Char Yes)
 
 -- | Describes function which will be generated
 --   (which rule, function number, type of the function).
@@ -165,7 +164,7 @@ type GenFunc = (RuNum, Int, GenerateI)
 
 -- | Generates function @subst_i@ where @i@ is the number of the rule
 --   which writes substitution for the rule @i@ into output stream.
-captureOneRule :: RuNum -> Rule PartitionL Char -> String
+captureOneRule :: RuNum -> Rule Char -> String
 captureOneRule ruNum (Rule _ _ _prefLen regex subst)
   = unlines [generatedFunctions, generatedMainFunction]
   where
@@ -197,7 +196,7 @@ captureOneRule ruNum (Rule _ _ _prefLen regex subst)
     funcsToGen :: [GenFunc]
     funcsToGen = fst $ runState (functionsToGen captLangCode) 0
 
-    functionsToGen :: [CaptLang PartitionL Char] -> State Int [GenFunc]
+    functionsToGen :: [CaptLang Char] -> State Int [GenFunc]
     functionsToGen [] = return []
     functionsToGen (IfNonEmpty _w as:xs)
       = do fs1 <- functionsToGen as
@@ -223,7 +222,7 @@ captureOneRule ruNum (Rule _ _ _prefLen regex subst)
     -- Regular expression without unused captures.
     regex' = rmCaptures regex
       where
-        rmCaptures :: Regex PartitionL Char c -> Regex PartitionL Char c
+        rmCaptures :: Regex Char c -> Regex Char c
         rmCaptures Epsilon = Epsilon
         rmCaptures r@(CharClass _) = r
         rmCaptures (Or a b) = rmCaptures a `Or` rmCaptures b
@@ -302,7 +301,7 @@ generateFunctionCode (RuN rn, n, genI)
     tabName name desc = "cap_" ++ show rn ++ '_' : show n ++ '_' : name ++
                         '_' : desc
 
-    generateAutomaton :: Regex PartitionL Word8 Yes -> String -> String
+    generateAutomaton :: Regex Word8 Yes -> String -> String
     generateAutomaton regex name = unlines (translTab : transitTabs ++
                                             [st2Match, st2TransitTab])
       where
@@ -331,7 +330,7 @@ generateFunctionCode (RuN rn, n, genI)
 
 -- | Generates C code for capturing subwords of matched word
 --   from abstract code.
-generateCaptLangCode :: [CaptLang PartitionL Char]
+generateCaptLangCode :: [CaptLang Char]
                      -> State (RuNum, Int) String
 generateCaptLangCode [] = return ""
 generateCaptLangCode (IfNonEmpty w as:xs)
@@ -390,7 +389,7 @@ generateSubstCode subst = unlines $ map gen terms
 -- Rule names
 
 -- | Generates array with names of the rules.
-generateRuleNames :: [Rule PartitionL Char] -> String
+generateRuleNames :: [Rule Char] -> String
 generateRuleNames rules = buildTableL (map toName rules)
                                       ("const char * rule2Name")
                                       show
@@ -401,7 +400,7 @@ generateRuleNames rules = buildTableL (map toName rules)
 -- Partial order
 
 -- | Generates function which setups initial partial order.
-generatePOrder :: [Rule PartitionL Char] -> String
+generatePOrder :: [Rule Char] -> String
 generatePOrder rules = unlines ["void setupPartialOrder(PartialOrder *po) {"
                                ,code
                                ,"}"

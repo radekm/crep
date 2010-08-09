@@ -35,15 +35,15 @@ import Core.Utils (sortAndGroupBySnd)
 
 type Sequence = [Range Word8]
 
-convertRule :: Rule PartitionL Char -> Rule PartitionL Word8
+convertRule :: Rule Char -> Rule Word8
 convertRule (Rule name prio prefLen regex subst)
   = Rule name prio prefLen (convertRegex regex) (convertSubst subst)
 
-convertRegex :: Regex PartitionL Char c -> Regex PartitionL Word8 c
+convertRegex :: Regex Char c -> Regex Word8 c
 convertRegex Epsilon = Epsilon
 convertRegex (CharClass cs) = convertSymbSet cs
   where
-    convertSymbSet :: PartitionL Char -> Regex PartitionL Word8 c
+    convertSymbSet :: Pa Char -> Regex Word8 c
     convertSymbSet = seqTreeToRegex . sequencesToSeqTree
                                     . concatMap convertRange
                                     . toRanges
@@ -196,7 +196,7 @@ bytesToRanges _ _ _ _ = error "Core.UTF8.bytesToRanges: bad input"
 
 -- | Represents regular expression composed of character classes,
 --   disjunction and concatenation.
-data SeqTree = Fork [(PartitionL Word8, SeqTree)]
+data SeqTree = Fork [(Pa Word8, SeqTree)]
              | Leaf
              deriving (Eq, Ord)
 
@@ -214,12 +214,12 @@ sequencesToSeqTree seqs = Fork branches'
     firstRanges :: [Range Word8]
     firstRanges = map head seqs
 
-    firstSymbSets :: [PartitionL Word8]
+    firstSymbSets :: [Pa Word8]
     firstSymbSets = map (\range -> fromRanges [range]) firstRanges
 
     allChars = foldl1 union firstSymbSets
 
-    symbSetsByRngs :: [PartitionL Word8]
+    symbSetsByRngs :: [Pa Word8]
     symbSetsByRngs = map (\(_, l, h) -> fromRanges [Range l h])
                        $ toIntervals
                        $ mconcat firstSymbSets
@@ -239,7 +239,7 @@ sequencesToSeqTree seqs = Fork branches'
     branches' = map (\br -> (foldl1 union $ map fst br, snd $ head br)) $
                 sortAndGroupBySnd branches
 
-seqTreeToRegex :: SeqTree -> Regex PartitionL Word8 c
+seqTreeToRegex :: SeqTree -> Regex Word8 c
 seqTreeToRegex Leaf = Epsilon
 seqTreeToRegex (Fork bs)
   = foldl1 Or (map (\(set, tr) -> CharClass set `Concat`

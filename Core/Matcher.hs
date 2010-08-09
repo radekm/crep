@@ -143,8 +143,8 @@ data BinSearchMatcher a
         , bsmReachablePrio :: Array State (Maybe Priority)
         }
 
-toBinSearchMatcher :: (U.IArray UArray a, Pa p a)
-                   => DFA p a -> BinSearchMatcher a
+toBinSearchMatcher :: (U.IArray UArray a, Symbol a)
+                   => DFA a -> BinSearchMatcher a
 toBinSearchMatcher dfa
   = BSM (fmap (listsToTransTab . unzip . toList . sdTrans) dfa)
         (fmap sdMatches dfa)
@@ -195,8 +195,8 @@ type NewPartition = [State]
 type Rest = [State]
 
 -- | Converts automaton to matcher.
-toCompAlphabetMatcher :: (Enum a, Ix a, Pa p a, Monoid (p a))
-                      => Int -> DFA p a -> CompAlphabetMatcher a
+toCompAlphabetMatcher :: (Ix a, Symbol a)
+                      => Int -> DFA a -> CompAlphabetMatcher a
 toCompAlphabetMatcher numPartitions dfa
   = CAM (listArray (0, pred numPartitions) $ map fst tabs)
         (array (bounds dfa) (concatMap snd tabs))
