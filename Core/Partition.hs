@@ -111,6 +111,16 @@ getBlock symbol (Cons b s xs)
   | otherwise   = getBlock symbol xs
 getBlock _ Nil = error "Core.Partition.getBlock (PartitionL): bad input"
 
+-- | Merges consecutive blocks with same block id.
+mergeConsecutive :: Pa s -> Pa s
+mergeConsecutive (Cons block symbol ys) = merge block symbol ys
+  where
+    merge prevBlock prevSymbol (Cons b s xs)
+      | prevBlock == b = merge b s xs
+      | otherwise      = Cons prevBlock prevSymbol $ merge b s xs
+    merge prevBlock prevSymbol Nil = Cons prevBlock prevSymbol Nil
+mergeConsecutive Nil = error "mergeConsecutive: bad partition"
+
 -- | Function @'mergeWith' f p p'@ takes two partitions @p@ and @p'@
 --   and creates new partition such that
 --
@@ -118,27 +128,18 @@ getBlock _ Nil = error "Core.Partition.getBlock (PartitionL): bad input"
 --   in partition @p'@ then @s@ is in block @f b b'@ in the new partition.
 mergeWith :: Symbol s
           => (BlockId -> BlockId -> BlockId) -> Pa s -> Pa s -> Pa s
-mergeWith op xss'@(Cons block _ _) yss'@(Cons block' _ _)
-  = merge (block `op` block') undefined {- prevSymb can be any value -}
-          xss' yss'
+mergeWith op p p' = mergeConsecutive $ merge p p'
   where
-    merge prevBlock prevSymb pss@(Cons b s ps) pss'@(Cons b' s' ps')
+    merge pss@(Cons b s ps) pss'@(Cons b' s' ps')
       = case compare s s' of
           LT -> cont s  ps  pss'
           GT -> cont s' pss ps'
           EQ -> cont s  ps  ps'
       where
         newBlock = b `op` b'
-        cont symb xss yss
-          | newBlock == prevBlock = merge prevBlock symb xss yss
-          | otherwise = Cons prevBlock prevSymb
-                             (merge newBlock symb xss yss)
-    merge prevBlock prevSymb Nil Nil
-      = Cons prevBlock prevSymb Nil
-    merge _ _ _ _
-      = error "Core.Partition.mergeWith (PartitionL): bad input"
-mergeWith _ _ _
-  = error "Core.Partition.mergeWith (PartitionL): no intervals"
+        cont symb xss yss = Cons newBlock symb $ merge xss yss
+    merge Nil Nil = Nil
+    merge _ _  = error "Core.Partition.mergeWith (PartitionL): bad input"
 
 -- | Function @'representatives' pa@ takes partition @pa@ and returns list.
 --   For every block of @pa@ resulting list contains one pair with id
@@ -151,15 +152,10 @@ representatives = sortAndNubWith fst . toList
 --   Blocks with the same id after transformation will be merged into one.
 --   (happens only if @f@ is not injective)
 pmap :: (BlockId -> BlockId) -> Pa s -> Pa s
-pmap _ Nil = error "Core.Partition.pmap (PartitionL): bad input"
-pmap f (Cons b' s' xs') = map' (f b') s' xs'
+pmap f = mergeConsecutive . map'
   where
-    map' prevBlock prevSymb (Cons b s xs)
-      | prevBlock /= curBlock = Cons prevBlock prevSymb (map' curBlock s xs)
-      | otherwise             = map' prevBlock s xs  -- Blocks are merged.
-      where
-        curBlock = f b
-    map' prevBlock prevSymb Nil = Cons prevBlock prevSymb Nil
+    map' (Cons b s xs) = Cons (f b) s (map' xs)
+    map' Nil           = Nil
 
 -- | Converts partition to list of triples (block, first symbol, last symbol).
 toIntervals :: Symbol s => Pa s -> [(BlockId, s, s)]
