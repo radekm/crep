@@ -94,7 +94,7 @@ check ((b, s):(b', s'):xs) = b /= b' && s < s' && check ((b', s'):xs)
 fromList :: Symbol s => [(BlockId, s)] -> Pa s
 fromList pa
   | check pa  = fromL pa
-  | otherwise = error "Core.Partition.fromList (PartitionL): bad input"
+  | otherwise = moduleError "fromList" "bad input"
   where
     fromL ((b, s):xs) = Cons b s $ fromL xs
     fromL []          = Nil
@@ -109,7 +109,7 @@ getBlock :: Symbol s => s -> Pa s -> BlockId
 getBlock symbol (Cons b s xs)
   | symbol <= s = b
   | otherwise   = getBlock symbol xs
-getBlock _ Nil = error "Core.Partition.getBlock (PartitionL): bad input"
+getBlock _ Nil = moduleError "getBlock" "bad partition"
 
 -- | Merges consecutive blocks with same block id.
 mergeConsecutive :: Pa s -> Pa s
@@ -119,7 +119,7 @@ mergeConsecutive (Cons block symbol ys) = merge block symbol ys
       | prevBlock == b = merge b s xs
       | otherwise      = Cons prevBlock prevSymbol $ merge b s xs
     merge prevBlock prevSymbol Nil = Cons prevBlock prevSymbol Nil
-mergeConsecutive Nil = error "mergeConsecutive: bad partition"
+mergeConsecutive Nil = moduleError "mergeConsecutive" "bad partition"
 
 -- | Function @'mergeWith' f p p'@ takes two partitions @p@ and @p'@
 --   and creates new partition such that
@@ -137,9 +137,9 @@ mergeWith op p p' = mergeConsecutive $ merge p p'
           EQ -> cont s  ps  ps'
       where
         newBlock = b `op` b'
-        cont symb xss yss = Cons newBlock symb $ merge xss yss
+        cont symbol xss yss = Cons newBlock symbol $ merge xss yss
     merge Nil Nil = Nil
-    merge _ _  = error "Core.Partition.mergeWith (PartitionL): bad input"
+    merge _ _  = moduleError "mergeWith" "bad partition"
 
 -- | Function @'representatives' pa@ takes partition @pa@ and returns list.
 --   For every block of @pa@ resulting list contains one pair with id
@@ -162,7 +162,7 @@ toIntervals :: Symbol s => Pa s -> [(BlockId, s, s)]
 toIntervals = toIntervals' Nothing . toList
   where
     toIntervals' Nothing []
-      = error "Core.Partition.toIntervals: bad partition"
+      = moduleError "toIntervals" "bad partition"
     toIntervals' (Just _) [] = []
     toIntervals' Nothing ((b, s):xs)
       = (b, minBound, s) :toIntervals' (Just s) xs
@@ -236,7 +236,7 @@ instance Symbol s => Monoid (Pa s) where
         where
           (newBlock, newDict) = translate (b, b') dict
       isect _ Nil Nil = Nil
-      isect _ _ _     = error "mappend (Pa): bad input"
+      isect _ _ _     = error "mappend (Pa): bad partition"
 
       translate k dict@(ddata, size)
         = case lookup k ddata of
@@ -244,3 +244,8 @@ instance Symbol s => Monoid (Pa s) where
             _             -> (size, ((k, size):ddata, succ size))
 
   mconcat = foldl mappend mempty
+
+-- ---------------------------------------------------------------------------
+
+moduleError :: String -> String -> a
+moduleError fun msg = error $ "Core.Partition." ++ fun ++ ": " ++ msg
