@@ -23,7 +23,7 @@ import Control.Arrow ((&&&))
 
 import FrontEnd.Parsec
 import Core.Regex
-import Core.Partition
+import Core.Set
 import Core.Utils
 
 class RegexParserSt a where

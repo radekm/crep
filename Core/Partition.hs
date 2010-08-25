@@ -4,12 +4,8 @@
 -- License   : BSD3
 -- Stability : experimental
 --
--- This module implements:
---
--- * partition of the alphabet with numbered blocks
---   (i.e. unique identifier is associated with each block of the partition),
---
--- * set of symbols.
+-- This module implements  partition of the alphabet with numbered blocks
+-- (i.e. unique identifier is associated with each block of the partition).
 --
 -- Partitions form commutative monoid with intersection.
 -- Intersection of two partitions @p@ and @p'@ is defined as set
@@ -30,19 +26,6 @@ module Core.Partition
        , representatives
        , pmap
        , toIntervals
-       -- * Symbol set
-
-         -- | Symbol set is implemented in terms of partition.
-         --   Symbol is in the set iff it is in the block with nonzero id.
-       , Range(..)
-       , fromRanges
-       , toRanges
-       , empty
-       , alphabet
-       , member
-       , complement
-       , union
-       , intersect
        ) where
 
 import Data.Monoid
@@ -170,61 +153,10 @@ toIntervals = toIntervals' Nothing . toList
       = (b, succ prev, s):toIntervals' (Just s) xs
 
 -- ---------------------------------------------------------------------------
--- Symbol set
-
--- | @Range a b@ contains every symbol @s@ which meets @a <= s <= b@.
---
---   Valid range has @a <= b@.
-data Range s = Range !s !s
-             deriving (Eq, Show)
-
--- | @'fromRanges' rs@ constructs symbol set with symbols from ranges
---   in the list @rs@.
-fromRanges :: Symbol s => [Range s] -> Pa s
-fromRanges = foldl union empty . map (fromList . rangeToList)
-  where
-    rangeToList (Range x y)
-      | x == minBound = if y == maxBound then [(1, maxBound)]
-                                         else [(1, y), (0, maxBound)]
-      | y == maxBound = [(0, pred x), (1, maxBound)]
-      | otherwise     = [(0, pred x), (1, y), (0, maxBound)]
-
--- | Returns ranges with characters inside symbol set.
-toRanges :: Symbol s => Pa s -> [Range s]
-toRanges = map intervalToRange . filterIntervals . toIntervals
-  where
-    filterIntervals             = filter (\(b, _, _) -> b /= 0)
-    intervalToRange (_, lo, hi) = Range lo hi
-
--- | Empty symbol set.
-empty :: Symbol s => Pa s
-empty = fromList [(0, maxBound)]
-
--- | Symbol set with all symbols.
-alphabet :: Symbol s => Pa s
-alphabet = fromList [(1, maxBound)]
-
--- | Function @'member' s set@ returns whether symbol @s@ is in @set@.
-member :: Symbol s => s -> Pa s -> Bool
-member s = (/=0) . getBlock s
-
--- | Returns complement of the given set.
-complement :: Pa s -> Pa s
-complement = pmap (\b -> if b == 0 then 1 else 0)
-
--- | Union of symbol sets.
-union :: Symbol s => Pa s -> Pa s -> Pa s
-union = mergeWith (\a b -> if a == 0 && b == 0 then 0 else 1)
-
--- | Intersection of symbol sets.
-intersect :: Symbol s => Pa s -> Pa s -> Pa s
-intersect = mergeWith (\a b -> if a == 0 || b == 0 then 0 else 1)
-
--- ---------------------------------------------------------------------------
 -- Pa is monoid with intersection
 
 instance Symbol s => Monoid (Pa s) where
-  mempty = empty
+  mempty = Cons 0 maxBound Nil
 
   mappend = isect ([], 0)
     where

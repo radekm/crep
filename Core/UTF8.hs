@@ -26,7 +26,8 @@ module Core.UTF8
        ) where
 
 import Data.Word (Word8, Word)
-import Core.Partition
+import Core.Set
+import Core.Partition (toIntervals)
 import Data.Bits ((.&.), (.|.), shiftL, shiftR)
 import Core.Regex
 import Core.Rule
@@ -43,7 +44,7 @@ convertRegex :: Regex Char c -> Regex Word8 c
 convertRegex Epsilon = Epsilon
 convertRegex (CharClass cs) = convertSymbSet cs
   where
-    convertSymbSet :: Pa Char -> Regex Word8 c
+    convertSymbSet :: Set Char -> Regex Word8 c
     convertSymbSet = seqTreeToRegex . sequencesToSeqTree
                                     . concatMap convertRange
                                     . toRanges
@@ -196,7 +197,7 @@ bytesToRanges _ _ _ _ = error "Core.UTF8.bytesToRanges: bad input"
 
 -- | Represents regular expression composed of character classes,
 --   disjunction and concatenation.
-data SeqTree = Fork [(Pa Word8, SeqTree)]
+data SeqTree = Fork [(Set Word8, SeqTree)]
              | Leaf
              deriving (Eq, Ord)
 
@@ -214,15 +215,16 @@ sequencesToSeqTree seqs = Fork branches'
     firstRanges :: [Range Word8]
     firstRanges = map head seqs
 
-    firstSymbSets :: [Pa Word8]
+    firstSymbSets :: [Set Word8]
     firstSymbSets = map (\range -> fromRanges [range]) firstRanges
 
     allChars = foldl1 union firstSymbSets
 
-    symbSetsByRngs :: [Pa Word8]
+    symbSetsByRngs :: [Set Word8]
     symbSetsByRngs = map (\(_, l, h) -> fromRanges [Range l h])
                        $ toIntervals
-                       $ mconcat firstSymbSets
+                       $ mconcat
+                       $ map toPartition firstSymbSets
 
     -- Remove symbol sets which contain no characters.
     symbSets = filter (\set -> intersect set allChars /= empty) symbSetsByRngs

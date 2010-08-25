@@ -20,7 +20,7 @@ module Core.Regex
        , listCaptures
        ) where
 
-import Core.Partition
+import Core.Set
 
 -- | Type @'Regex' p s c@ represents regular expressions where
 --
@@ -33,7 +33,7 @@ data Regex s c where
   -- @'Epsilon'@ denotes @L = {empty word}@.
   Epsilon :: Regex s c
   -- @'CharClass' set@ denotes @L = set@.
-  CharClass :: Pa s -> Regex s c
+  CharClass :: Set s -> Regex s c
   -- @'Or' a b@ denotes @L = L(a) \\\/ L(b)@.
   Or :: Regex s c -> Regex s c -> Regex s c
   -- @'And' a b@ denotes @L = L(a) \/\\ L(b)@.

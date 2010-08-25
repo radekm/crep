@@ -21,11 +21,12 @@ module Core.RE
 
 import Core.Regex
 import Core.Partition
+import Core.Set
 import Data.Monoid
 
 -- | Type @'RE' s@ represents regular expressions in normal form where
 --   @s@ is type of symbols.
-data RE s = RCharClass (Pa s)
+data RE s = RCharClass (Set s)
           | REpsilon
           | ROr (RE s) (RE s)
           | RAnd (RE s) (RE s)
@@ -206,7 +207,7 @@ derivative c (RNot r)       = consNot (derivative c r)
 partitionAlphabetByDerivatives :: Symbol s => RE s -> Pa s
 partitionAlphabetByDerivatives re
   = case re of
-      RCharClass set -> set
+      RCharClass set -> toPartition set
       REpsilon       -> mempty
       ROr a b        -> pa a `mappend` pa b
       RAnd a b       -> pa a `mappend` pa b
